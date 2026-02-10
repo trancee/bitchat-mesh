@@ -85,6 +85,12 @@ xcodebuild -project bitchatMeshSample/bitchatMeshSample.xcodeproj \
 	build
 ```
 
+## Migration notes
+
+- iOS `MeshManager` now mirrors Android with `setListener`, `start(nickname:)`, `isRunning`/`isStarted`, `establish`/`isEstablished`, and file send helpers.
+- `sendBroadcastMessage` accepts `mentions` and `channel` for parity; `channel` is currently ignored on iOS.
+- New listener callbacks are available for start/stop, send, and verify events; existing listeners can adopt them as needed.
+
 ## Library maintenance
 
 Keep the libraries aligned with the upstream app sources:

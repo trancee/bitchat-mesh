@@ -11,11 +11,18 @@ import BitLogger
 
 /// TLV payload for Bluetooth mesh file transfers (voice notes, images, generic files).
 /// Mirrors the Android client specification to ensure cross-platform interoperability.
-struct BitchatFilePacket {
-    var fileName: String?
-    var fileSize: UInt64?
-    var mimeType: String?
-    var content: Data
+public struct BitchatFilePacket {
+    public var fileName: String?
+    public var fileSize: UInt64?
+    public var mimeType: String?
+    public var content: Data
+
+    public init(fileName: String?, fileSize: UInt64?, mimeType: String?, content: Data) {
+        self.fileName = fileName
+        self.fileSize = fileSize
+        self.mimeType = mimeType
+        self.content = content
+    }
 
     /// Canonical TLV tags defined by the Android implementation.
     private enum TLVType: UInt8 {
@@ -27,7 +34,7 @@ struct BitchatFilePacket {
 
     /// Encodes the packet using v2 canonical TLVs (4-byte FILE_SIZE, 4-byte CONTENT length).
     /// Returns `nil` when fields exceed protocol limits (e.g., content > UInt32.max).
-    func encode() -> Data? {
+    public func encode() -> Data? {
         let resolvedSize = fileSize ?? UInt64(content.count)
         guard resolvedSize <= UInt64(UInt32.max) else { return nil }
         guard resolvedSize <= UInt64(FileTransferLimits.maxPayloadBytes) else { return nil }
@@ -65,7 +72,7 @@ struct BitchatFilePacket {
     }
 
     /// Decodes TLV payloads, tolerating legacy encodings (FILE_SIZE len=8, CONTENT len=2) when possible.
-    static func decode(_ data: Data) -> BitchatFilePacket? {
+    public static func decode(_ data: Data) -> BitchatFilePacket? {
         var cursor = data.startIndex
         let end = data.endIndex
 
