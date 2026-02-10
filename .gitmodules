@@ -1,0 +1,6 @@
+[submodule "bitchat"]
+	path = bitchat
+	url = https://github.com/permissionlesstech/bitchat.git
+[submodule "bitchat-android"]
+	path = bitchat-android
+	url = https://github.com/permissionlesstech/bitchat-android.git
