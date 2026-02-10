@@ -2,6 +2,9 @@ package com.bitchat.android.util
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
+import java.security.MessageDigest
 import java.util.*
 
 /**
@@ -18,6 +21,11 @@ fun ByteArray.hexEncodedString(): String {
     return this.joinToString("") { "%02x".format(it) }
 }
 
+fun ByteArray.sha256Hex(): String {
+    val digest = MessageDigest.getInstance("SHA-256").digest(this)
+    return digest.joinToString("") { "%02x".format(it) }
+}
+
 fun String.dataFromHexString(): ByteArray? {
     val len = this.length / 2
     val data = ByteArray(len)
@@ -30,6 +38,17 @@ fun String.dataFromHexString(): ByteArray? {
     }
     
     return data
+}
+
+fun decodeUtf8OrNull(bytes: ByteArray): String? {
+    val decoder = Charsets.UTF_8.newDecoder()
+        .onMalformedInput(CodingErrorAction.REPORT)
+        .onUnmappableCharacter(CodingErrorAction.REPORT)
+    return try {
+        decoder.decode(ByteBuffer.wrap(bytes)).toString()
+    } catch (_: CharacterCodingException) {
+        null
+    }
 }
 
 // MARK: - Binary Encoding Utilities
@@ -171,7 +190,7 @@ class BinaryDataReader(private val data: ByteArray) {
         val stringData = data.sliceArray(offset until offset + length)
         offset += length
         
-        return String(stringData, Charsets.UTF_8)
+        return decodeUtf8OrNull(stringData)
     }
     
     fun readData(maxLength: Int = 65535): ByteArray? {
@@ -308,7 +327,7 @@ fun ByteArray.readString(at: IntArray, maxLength: Int = 255): String? {
     val stringData = this.sliceArray(offset until offset + length)
     at[0] += length
     
-    return String(stringData, Charsets.UTF_8)
+    return decodeUtf8OrNull(stringData)
 }
 
 fun ByteArray.readData(at: IntArray, maxLength: Int = 65535): ByteArray? {

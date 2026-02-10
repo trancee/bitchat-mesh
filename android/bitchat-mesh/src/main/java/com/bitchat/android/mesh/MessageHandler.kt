@@ -106,14 +106,17 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                     // Handle encrypted file transfer; generate unique message ID
                     val file = com.bitchat.android.model.BitchatFilePacket.decode(noisePayload.data)
                     if (file != null) {
-                        Log.d(TAG, "🔓 Decrypted encrypted file from $peerID: name='${file.fileName}', size=${file.fileSize}, mime='${file.mimeType}'")
+                        val safeName = file.fileName ?: "unknown_file"
+                        val safeSize = file.fileSize ?: file.content.size.toLong()
+                        val safeMime = file.mimeType ?: "application/octet-stream"
+                        Log.d(TAG, "🔓 Decrypted encrypted file from $peerID: name='$safeName', size=$safeSize, mime='$safeMime'")
                         val uniqueMsgId = java.util.UUID.randomUUID().toString().uppercase()
                         val savedPath = com.bitchat.android.features.file.FileUtils.saveIncomingFile(appContext, file)
                         val message = BitchatMessage(
                             id = uniqueMsgId,
                             sender = delegate?.getPeerNickname(peerID) ?: "Unknown",
                             content = savedPath,
-                            type = com.bitchat.android.features.file.FileUtils.messageTypeForMime(file.mimeType),
+                            type = com.bitchat.android.features.file.FileUtils.messageTypeForMime(safeMime),
                             timestamp = java.util.Date(packet.timestamp.toLong()),
                             isRelay = false,
                             isPrivate = true,
@@ -387,14 +390,17 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
             val file = com.bitchat.android.model.BitchatFilePacket.decode(packet.payload)
             if (file != null) {
                 if (isFileTransfer) {
-                    Log.d(TAG, "📥 FILE_TRANSFER decode success (broadcast): name='${file.fileName}', size=${file.fileSize}, mime='${file.mimeType}', from=${peerID.take(8)}")
+                    val safeName = file.fileName ?: "unknown_file"
+                    val safeSize = file.fileSize ?: file.content.size.toLong()
+                    val safeMime = file.mimeType ?: "application/octet-stream"
+                    Log.d(TAG, "📥 FILE_TRANSFER decode success (broadcast): name='$safeName', size=$safeSize, mime='$safeMime', from=${peerID.take(8)}")
                 }
                 val savedPath = com.bitchat.android.features.file.FileUtils.saveIncomingFile(appContext, file)
                 val message = BitchatMessage(
                     id = java.util.UUID.randomUUID().toString().uppercase(),
                     sender = delegate?.getPeerNickname(peerID) ?: "unknown",
                     content = savedPath,
-                    type = com.bitchat.android.features.file.FileUtils.messageTypeForMime(file.mimeType),
+                    type = com.bitchat.android.features.file.FileUtils.messageTypeForMime(file.mimeType ?: "application/octet-stream"),
                     senderPeerID = peerID,
                     timestamp = Date(packet.timestamp.toLong())
                 )
@@ -434,14 +440,17 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
             val file = com.bitchat.android.model.BitchatFilePacket.decode(packet.payload)
             if (file != null) {
                 if (isFileTransfer) {
-                    Log.d(TAG, "📥 FILE_TRANSFER decode success (private): name='${file.fileName}', size=${file.fileSize}, mime='${file.mimeType}', from=${peerID.take(8)}")
+                    val safeName = file.fileName ?: "unknown_file"
+                    val safeSize = file.fileSize ?: file.content.size.toLong()
+                    val safeMime = file.mimeType ?: "application/octet-stream"
+                    Log.d(TAG, "📥 FILE_TRANSFER decode success (private): name='$safeName', size=$safeSize, mime='$safeMime', from=${peerID.take(8)}")
                 }
                 val savedPath = com.bitchat.android.features.file.FileUtils.saveIncomingFile(appContext, file)
                 val message = BitchatMessage(
                     id = java.util.UUID.randomUUID().toString().uppercase(),
                     sender = delegate?.getPeerNickname(peerID) ?: "unknown",
                     content = savedPath,
-                    type = com.bitchat.android.features.file.FileUtils.messageTypeForMime(file.mimeType),
+                    type = com.bitchat.android.features.file.FileUtils.messageTypeForMime(file.mimeType ?: "application/octet-stream"),
                     senderPeerID = peerID,
                     timestamp = Date(packet.timestamp.toLong()),
                     isPrivate = true,

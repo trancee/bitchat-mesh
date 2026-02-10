@@ -148,7 +148,7 @@ bitchat-mesh/
 
 This library maintains 100% binary protocol compatibility with:
 - [bitchat-android](https://github.com/permissionlesstech/bitchat-android) (original Android app)
-- [bitchat-ios](https://github.com/jackjackbits/bitchat) (original iOS app)
+- [bitchat-ios](https://github.com/permissionlesstech/bitchat) (original iOS app)
 
 Compatible features:
 - Bluetooth LE service/characteristic UUIDs
@@ -170,7 +170,7 @@ This library is derived from [bitchat-android](https://github.com/permissionless
 ## Support
 
 - **Original Project:** https://github.com/permissionlesstech/bitchat-android
-- **iOS Version:** https://github.com/jackjackbits/bitchat
+- **iOS Version:** https://github.com/permissionlesstech/bitchat
 
 ## Contributing
 

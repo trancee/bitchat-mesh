@@ -83,9 +83,9 @@ object FileSharingManager {
 
     fun processReceivedFile(packet: BitchatFilePacket): ReceivedFileInfo {
         return ReceivedFileInfo(
-            fileName = packet.fileName,
-            fileSize = packet.fileSize,
-            mimeType = packet.mimeType,
+            fileName = packet.fileName ?: "unknown_file",
+            fileSize = packet.fileSize ?: packet.content.size.toLong(),
+            mimeType = packet.mimeType ?: "application/octet-stream",
             content = packet.content
         )
     }

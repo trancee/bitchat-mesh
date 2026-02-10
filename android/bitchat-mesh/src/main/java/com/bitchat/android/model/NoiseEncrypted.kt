@@ -128,6 +128,9 @@ data class PrivateMessagePacket(
         val contentData = content.toByteArray(Charsets.UTF_8)
         
         // Check size limits (TLV length field is 1 byte = max 255)
+        if (messageIDData.isEmpty() || contentData.isEmpty()) {
+            return null
+        }
         if (messageIDData.size > 255 || contentData.size > 255) {
             return null
         }
@@ -175,10 +178,12 @@ data class PrivateMessagePacket(
                 
                 when (type) {
                     TLVType.MESSAGE_ID -> {
-                        messageID = String(value, Charsets.UTF_8)
+                        val decoded = com.bitchat.android.util.decodeUtf8OrNull(value) ?: return null
+                        messageID = decoded
                     }
                     TLVType.CONTENT -> {
-                        content = String(value, Charsets.UTF_8)
+                        val decoded = com.bitchat.android.util.decodeUtf8OrNull(value) ?: return null
+                        content = decoded
                     }
                 }
             }

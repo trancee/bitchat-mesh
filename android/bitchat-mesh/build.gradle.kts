@@ -10,7 +10,6 @@ android {
 
     defaultConfig {
         minSdk = libs.versions.minSdk.get().toInt()
-        targetSdk = libs.versions.targetSdk.get().toInt()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }
@@ -26,6 +25,14 @@ android {
     buildFeatures {
         buildConfig = false
     }
+
+    testOptions {
+        targetSdk = libs.versions.targetSdk.get().toInt()
+    }
+}
+
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    useJUnitPlatform()
 }
 
 dependencies {
@@ -38,4 +45,7 @@ dependencies {
     implementation(libs.bundles.cryptography)
     implementation(libs.androidx.security.crypto)
     implementation(libs.nordic.ble)
+
+    testImplementation(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
 }

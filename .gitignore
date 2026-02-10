@@ -16,6 +16,7 @@ DerivedData/
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
 .build
+.kotlin
 
 
 # macOS files

@@ -758,7 +758,9 @@ class BluetoothMeshService(private val context: Context) {
      */
     fun sendFileBroadcast(file: com.bitchat.android.model.BitchatFilePacket) {
         try {
-            Log.d(TAG, "📤 sendFileBroadcast: name=${file.fileName}, size=${file.fileSize}")
+            val safeName = file.fileName ?: "unknown_file"
+            val safeSize = file.fileSize ?: file.content.size.toLong()
+            Log.d(TAG, "📤 sendFileBroadcast: name=$safeName, size=$safeSize")
             val payload = file.encode()
             if (payload == null) {
                 Log.e(TAG, "❌ Failed to encode file packet in sendFileBroadcast")
@@ -785,7 +787,9 @@ class BluetoothMeshService(private val context: Context) {
         }
             } catch (e: Exception) {
             Log.e(TAG, "❌ sendFileBroadcast failed: ${e.message}", e)
-            Log.e(TAG, "❌ File: name=${file.fileName}, size=${file.fileSize}")
+                val safeName = file.fileName ?: "unknown_file"
+                val safeSize = file.fileSize ?: file.content.size.toLong()
+                Log.e(TAG, "❌ File: name=$safeName, size=$safeSize")
         }
     }
 
@@ -794,7 +798,9 @@ class BluetoothMeshService(private val context: Context) {
      */
     fun sendFilePrivate(recipientPeerID: String, file: com.bitchat.android.model.BitchatFilePacket) {
         try {
-            Log.d(TAG, "📤 sendFilePrivate (ENCRYPTED): to=$recipientPeerID, name=${file.fileName}, size=${file.fileSize}")
+            val safeName = file.fileName ?: "unknown_file"
+            val safeSize = file.fileSize ?: file.content.size.toLong()
+            Log.d(TAG, "📤 sendFilePrivate (ENCRYPTED): to=$recipientPeerID, name=$safeName, size=$safeSize")
             
             serviceScope.launch {
                 // Check if we have an established Noise session
@@ -853,7 +859,9 @@ class BluetoothMeshService(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ sendFilePrivate failed: ${e.message}", e)
-            Log.e(TAG, "❌ File: to=$recipientPeerID, name=${file.fileName}, size=${file.fileSize}")
+            val safeName = file.fileName ?: "unknown_file"
+            val safeSize = file.fileSize ?: file.content.size.toLong()
+            Log.e(TAG, "❌ File: to=$recipientPeerID, name=$safeName, size=$safeSize")
         }
     }
 

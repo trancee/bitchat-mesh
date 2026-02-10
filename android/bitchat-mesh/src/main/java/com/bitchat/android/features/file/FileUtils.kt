@@ -195,7 +195,7 @@ object FileUtils {
         context: Context,
         file: com.bitchat.android.model.BitchatFilePacket
     ): String {
-        val lowerMime = file.mimeType.lowercase()
+        val lowerMime = (file.mimeType ?: "application/octet-stream").lowercase()
         val isImage = lowerMime.startsWith("image/")
         // FIX: Use cacheDir instead of filesDir to prevent storage exhaustion attacks (Issue #592)
         // Files in cacheDir are eligible for automatic system cleanup when space is low
@@ -213,7 +213,7 @@ object FileUtils {
         }
 
         // Prefer transmitted original name; ensure uniqueness to avoid overwrites
-        val baseName = (file.fileName.takeIf { it.isNotBlank() }
+        val baseName = (file.fileName?.takeIf { it.isNotBlank() }
             ?: (if (isImage) "img" else "file"))
             .replace(Regex("[^A-Za-z0-9._-]"), "_")
         val ext = extFromMime(lowerMime)
