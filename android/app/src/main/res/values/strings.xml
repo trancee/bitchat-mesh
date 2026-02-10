@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">bitchat mesh sample</string>
+    <string name="title_mesh_sample">Mesh Sample</string>
+    <string name="subtitle_mesh">BLE mesh discovery, messaging, and debug telemetry</string>
+    <string name="title_log">Debug log</string>
+    <string name="action_start">Start mesh</string>
+    <string name="action_stop">Stop mesh</string>
+    <string name="action_send">Send broadcast</string>
+    <string name="action_send_direct">Send direct</string>
+    <string name="action_establish">Establish session</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_autoscroll">Auto-scroll</string>
+    <string name="hint_message">Write a message</string>
+    <string name="title_direct">Direct message</string>
+    <string name="label_my_peer_id">My peer ID</string>
+    <string name="label_peer_id_unknown">Not available yet</string>
+    <string name="label_no_peers">No peers found</string>
+    <string name="label_pending_direct">Pending direct: %1$d</string>
+    <string name="label_handshake_pending">Handshake pending</string>
+    <string name="label_session_status">Session: %1$s</string>
+    <string name="status_session_established">established</string>
+    <string name="status_session_not_established">not established</string>
+    <string name="status_session_no_peer">no peer</string>
+    <string name="status_running">Running</string>
+    <string name="status_stopped">Stopped</string>
+</resources>

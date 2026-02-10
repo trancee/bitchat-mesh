@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="@color/mesh_surface">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/title_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/title_mesh_sample"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@color/mesh_text_primary" />
+
+        <TextView
+            android:id="@+id/status_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/status_stopped"
+            android:textSize="12sp"
+            android:textColor="@color/mesh_status_text"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:background="@drawable/bg_status_chip" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/subtitle_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="@string/subtitle_mesh"
+        android:textSize="13sp"
+        android:textColor="@color/mesh_text_secondary" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/my_peer_id_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/label_my_peer_id"
+            android:textSize="12sp"
+            android:textColor="@color/mesh_text_secondary" />
+
+        <TextView
+            android:id="@+id/my_peer_id_value"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="@string/label_peer_id_unknown"
+            android:textSize="12sp"
+            android:textColor="@color/mesh_text_primary" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/start_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/action_start"
+            android:textAllCaps="false"
+            android:backgroundTint="@color/mesh_primary"
+            android:textColor="@color/mesh_on_primary" />
+
+        <Button
+            android:id="@+id/stop_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:text="@string/action_stop"
+            android:textAllCaps="false"
+            android:backgroundTint="@color/mesh_secondary"
+            android:textColor="@color/mesh_on_secondary" />
+    </LinearLayout>
+
+    <EditText
+        android:id="@+id/message_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:hint="@string/hint_message"
+        android:padding="12dp"
+        android:background="@drawable/bg_input"
+        android:textColor="@color/mesh_text_primary"
+        android:textColorHint="@color/mesh_text_hint" />
+
+    <Button
+        android:id="@+id/send_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/action_send"
+        android:layout_marginTop="10dp"
+        android:textAllCaps="false"
+        android:backgroundTint="@color/mesh_primary"
+        android:textColor="@color/mesh_on_primary" />
+
+    <TextView
+        android:id="@+id/direct_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/title_direct"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="@color/mesh_text_primary" />
+
+    <Spinner
+        android:id="@+id/peer_id_spinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:padding="12dp"
+        android:background="@drawable/bg_input"
+        android:spinnerMode="dropdown" />
+
+    <Button
+        android:id="@+id/establish_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/action_establish"
+        android:layout_marginTop="8dp"
+        android:textAllCaps="false"
+        android:backgroundTint="@color/mesh_surface_alt"
+        android:textColor="@color/mesh_text_primary" />
+
+    <TextView
+        android:id="@+id/session_status_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="@string/label_session_status"
+        android:textSize="12sp"
+        android:textColor="@color/mesh_text_secondary" />
+
+    <Button
+        android:id="@+id/send_direct_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/action_send_direct"
+        android:layout_marginTop="10dp"
+        android:textAllCaps="false"
+        android:backgroundTint="@color/mesh_secondary"
+        android:textColor="@color/mesh_on_secondary" />
+
+    <TextView
+        android:id="@+id/pending_direct_indicator"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="@string/label_pending_direct"
+        android:textSize="12sp"
+        android:textColor="@color/mesh_text_secondary"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/handshake_pending_badge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="@string/label_handshake_pending"
+        android:textSize="11sp"
+        android:textColor="@color/mesh_text_secondary"
+        android:background="@drawable/bg_status_chip"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/log_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/title_log"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/mesh_text_primary" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/autoscroll_switch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/action_autoscroll"
+            android:textSize="12sp"
+            android:textColor="@color/mesh_text_secondary" />
+
+        <Button
+            android:id="@+id/clear_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="@string/action_clear"
+            android:textAllCaps="false"
+            android:backgroundTint="@color/mesh_surface_alt"
+            android:textColor="@color/mesh_text_primary" />
+    </LinearLayout>
+
+    <ScrollView
+        android:id="@+id/log_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_log_window"
+        android:fillViewport="true"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/log_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="@color/mesh_text_primary"
+            android:lineSpacingExtra="2dp" />
+    </ScrollView>
+</LinearLayout>
