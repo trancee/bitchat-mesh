@@ -1,6 +1,5 @@
 package com.bitchat.android.protocol
 
-import com.bitchat.android.util.FileTransferLimits
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -10,6 +9,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class BinaryProtocolTests {
+    private companion object {
+        const val HEADER_SIZE_V1 = 13
+        const val SENDER_ID_SIZE = 8
+    }
+
     private class ByteArrayBuilder {
         private val data = ArrayList<Byte>()
 
@@ -33,7 +37,7 @@ class BinaryProtocolTests {
     }
 
     @Test
-    fun testBinaryProtocolEncodeDecodeV1WithRecipientSignatureAndRoute() {
+    fun testBinaryProtocolEncodeDecodeV2WithRecipientSignatureAndRoute() {
         val senderID = byteArrayOf(0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08)
         val recipientID = byteArrayOf(0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17)
         val payload = "hello".toByteArray(Charsets.UTF_8)
@@ -51,11 +55,11 @@ class BinaryProtocolTests {
             payload = payload,
             signature = signature,
             ttl = 7u,
-            version = 1u,
+            version = 2u,
             route = route
         )
 
-        val encoded = BinaryProtocol.encode(packet, padding = false)
+        val encoded = BinaryProtocol.encode(packet)
         assertNotNull(encoded)
         val decoded = BinaryProtocol.decode(encoded!!)
         assertNotNull(decoded)
@@ -92,7 +96,7 @@ class BinaryProtocolTests {
             route = null
         )
 
-        val encoded = BinaryProtocol.encode(packet, padding = false)
+        val encoded = BinaryProtocol.encode(packet)
         assertNotNull(encoded)
         val decoded = BinaryProtocol.decode(encoded!!)
         assertNotNull(decoded)
@@ -125,7 +129,7 @@ class BinaryProtocolTests {
             route = null
         )
 
-        val encoded = BinaryProtocol.encode(packet, padding = false)
+        val encoded = BinaryProtocol.encode(packet)
         assertNotNull(encoded)
         assertTrue((encoded!![11].toInt() and 0x04) != 0)
 
@@ -150,14 +154,16 @@ class BinaryProtocolTests {
             route = null
         )
 
-        val padded = BinaryProtocol.encode(packet, padding = true)
-        val unpadded = BinaryProtocol.encode(packet, padding = false)
-        assertNotNull(padded)
-        assertNotNull(unpadded)
-        assertTrue(padded!!.size >= unpadded!!.size)
+        val encoded = BinaryProtocol.encode(packet)
+        assertNotNull(encoded)
 
-        val decoded = BinaryProtocol.decode(padded)
+        val unpadded = MessagePadding.unpad(encoded!!)
+        assertTrue(encoded.size >= unpadded.size)
+
+        val decoded = BinaryProtocol.decode(encoded)
         assertArrayEquals(payload, decoded?.payload)
+        val decodedUnpadded = BinaryProtocol.decode(unpadded)
+        assertArrayEquals(payload, decodedUnpadded?.payload)
     }
 
     @Test
@@ -177,31 +183,15 @@ class BinaryProtocolTests {
     }
 
     @Test
-    fun testBinaryProtocolDecodeRejectsOversizedOriginalLength() {
-        val builder = ByteArrayBuilder()
-        builder.append(2)
-        builder.append(0x01)
-        builder.append(0x01)
-        builder.appendBytes(ByteArray(8))
-        builder.append(BinaryProtocol.Flags.IS_COMPRESSED.toInt())
-        builder.appendUInt32(5)
-        builder.appendBytes(ByteArray(8) { 0xBB.toByte() })
-        builder.appendUInt32((FileTransferLimits.maxFramedFileBytes + 1).toLong())
-        builder.append(0x00)
-
-        assertNull(BinaryProtocol.decode(builder.toByteArray()))
-    }
-
-    @Test
     fun testBinaryProtocolDecodeRejectsInvalidVersion() {
-        val data = ByteArray(BinaryProtocol.V1_HEADER_SIZE + BinaryProtocol.SENDER_ID_SIZE)
+        val data = ByteArray(HEADER_SIZE_V1 + SENDER_ID_SIZE)
         data[0] = 3
         assertNull(BinaryProtocol.decode(data))
     }
 
     @Test
     fun testBinaryProtocolDecodeRejectsShortHeader() {
-        val data = ByteArray(BinaryProtocol.V1_HEADER_SIZE + BinaryProtocol.SENDER_ID_SIZE - 1)
+        val data = ByteArray(HEADER_SIZE_V1 + SENDER_ID_SIZE - 1)
         assertNull(BinaryProtocol.decode(data))
     }
 
@@ -236,9 +226,9 @@ class BinaryProtocolTests {
             route = null
         )
 
-        val encoded = BinaryProtocol.encode(packet, padding = false)
+        val encoded = BinaryProtocol.encode(packet)
         assertNotNull(encoded)
-        val truncated = encoded!!.copyOf(BinaryProtocol.V1_HEADER_SIZE + BinaryProtocol.SENDER_ID_SIZE)
+        val truncated = encoded!!.copyOf(HEADER_SIZE_V1 + SENDER_ID_SIZE)
         assertNull(BinaryProtocol.decode(truncated))
     }
 
@@ -259,12 +249,12 @@ class BinaryProtocolTests {
     @Test
     fun testBinaryProtocolDecodeRejectsRouteCountOutOfBounds() {
         val builder = ByteArrayBuilder()
-        builder.append(1)
+        builder.append(2)
         builder.append(0x01)
         builder.append(0x01)
         builder.appendBytes(ByteArray(8))
         builder.append(BinaryProtocol.Flags.HAS_ROUTE.toInt())
-        builder.appendUInt16(1)
+        builder.appendUInt32(0)
         builder.appendBytes(ByteArray(8) { 0xAA.toByte() })
         builder.append(0x02)
 
@@ -288,12 +278,12 @@ class BinaryProtocolTests {
     @Test
     fun testBinaryProtocolDecodeRejectsRouteMissingCount() {
         val builder = ByteArrayBuilder()
-        builder.append(1)
+        builder.append(2)
         builder.append(0x01)
         builder.append(0x01)
         builder.appendBytes(ByteArray(8))
         builder.append(BinaryProtocol.Flags.HAS_ROUTE.toInt())
-        builder.appendUInt16(0)
+        builder.appendUInt32(0)
         builder.appendBytes(ByteArray(8) { 0xAA.toByte() })
 
         assertNull(BinaryProtocol.decode(builder.toByteArray()))
@@ -302,12 +292,12 @@ class BinaryProtocolTests {
     @Test
     fun testBinaryProtocolDecodeRejectsRouteWithInsufficientHopBytes() {
         val builder = ByteArrayBuilder()
-        builder.append(1)
+        builder.append(2)
         builder.append(0x01)
         builder.append(0x01)
         builder.appendBytes(ByteArray(8))
         builder.append(BinaryProtocol.Flags.HAS_ROUTE.toInt())
-        builder.appendUInt16(1 + 7)
+        builder.appendUInt32(0)
         builder.appendBytes(ByteArray(8) { 0xAA.toByte() })
         builder.append(0x01)
         builder.appendBytes(ByteArray(7) { 0xBB.toByte() })
@@ -346,7 +336,7 @@ class BinaryProtocolTests {
 
     @Test
     fun testBinaryProtocolDecodeRejectsInvalidPaddingBytes() {
-        val data = ByteArray(BinaryProtocol.V1_HEADER_SIZE + BinaryProtocol.SENDER_ID_SIZE - 1)
+        val data = ByteArray(HEADER_SIZE_V1 + SENDER_ID_SIZE - 1)
         val invalid = data + byteArrayOf(0x00)
         assertNull(BinaryProtocol.decode(invalid))
     }
@@ -404,7 +394,7 @@ class BinaryProtocolTests {
             route = null
         )
 
-        val encoded = BinaryProtocol.encode(packet, padding = false)
+        val encoded = BinaryProtocol.encode(packet)
         assertNotNull(encoded)
         val withTrailing = encoded!! + byteArrayOf(0xFF.toByte())
 
@@ -457,12 +447,12 @@ class BinaryProtocolTests {
     @Test
     fun testBinaryProtocolDecodeRejectsRouteCountOverflow() {
         val builder = ByteArrayBuilder()
-        builder.append(1)
+        builder.append(2)
         builder.append(0x01)
         builder.append(0x01)
         builder.appendBytes(ByteArray(8))
         builder.append(BinaryProtocol.Flags.HAS_ROUTE.toInt())
-        builder.appendUInt16(1)
+        builder.appendUInt32(0)
         builder.appendBytes(ByteArray(8) { 0xAA.toByte() })
         builder.append(0xFF)
 

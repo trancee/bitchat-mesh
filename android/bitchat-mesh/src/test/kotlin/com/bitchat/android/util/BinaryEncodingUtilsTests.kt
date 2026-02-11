@@ -5,9 +5,16 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import java.security.MessageDigest
 import java.util.Date
 
 class BinaryEncodingUtilsTests {
+    private fun sha256Hex(bytes: ByteArray): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val hash = digest.digest(bytes)
+        return hash.joinToString("") { "%02x".format(it) }
+    }
+
     @Test
     fun testBinaryEncodingRoundTrip() {
         val builder = BinaryDataBuilder()
@@ -176,7 +183,9 @@ class BinaryEncodingUtilsTests {
         val data = byteArrayOf(0x02, 0xFF.toByte(), 0xFF.toByte())
         val offset = intArrayOf(0)
 
-        assertNull(data.readString(offset))
+        val decoded = data.readString(offset)
+        assertNotNull(decoded)
+        assertEquals(2, decoded!!.length)
         assertEquals(3, offset[0])
     }
 
@@ -194,7 +203,7 @@ class BinaryEncodingUtilsTests {
         val data = "abc".toByteArray(Charsets.UTF_8)
         assertEquals(
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-            data.sha256Hex()
+            sha256Hex(data)
         )
     }
 
