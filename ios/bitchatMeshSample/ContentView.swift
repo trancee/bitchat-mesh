@@ -1,6 +1,7 @@
 import SwiftUI
 import CoreBluetooth
 import BitchatMesh
+import UIKit
 
 final class MeshSampleModel: ObservableObject, MeshListener {
     @Published var isRunning = false
@@ -8,10 +9,18 @@ final class MeshSampleModel: ObservableObject, MeshListener {
     @Published var peerNicknames: [PeerID: String] = [:]
     @Published var logLines: [String] = []
     @Published var messageText = ""
+    @Published var myPeerId = "Not available yet"
+    @Published var selectedPeerId = ""
+    @Published var pendingDirectCountByPeer: [String: Int] = [:]
 
     private let mesh: MeshManager
     private let dateFormatter: DateFormatter
-    private let maxLogLines = 200
+    private let maxLogLines = 1000
+    private let pendingRetryDelay: TimeInterval = 3
+    private let pendingTimeout: TimeInterval = 15
+    private let pendingMaxAttempts = 3
+    private var pendingDirectMessages: [String: [PendingDirectMessage]] = [:]
+    private var pendingRetryTimers: [String: Timer] = [:]
 
     init() {
         mesh = MeshManager()
@@ -20,10 +29,30 @@ final class MeshSampleModel: ObservableObject, MeshListener {
         mesh.listener = self
     }
 
+    deinit {
+        pendingRetryTimers.values.forEach { $0.invalidate() }
+    }
+
+    var pendingCount: Int {
+        pendingDirectCountByPeer[selectedPeerId] ?? 0
+    }
+
+    var sessionStatusText: String {
+        guard !selectedPeerId.isEmpty else { return "Session: no peer" }
+        let peer = PeerID(str: selectedPeerId)
+        let isEstablished = mesh.isEstablished(peer)
+        return "Session: \(isEstablished ? "established" : "not established")"
+    }
+
+    var canEstablish: Bool {
+        isRunning && !selectedPeerId.isEmpty
+    }
+
     func start() {
         guard !isRunning else { return }
-        mesh.start(nickname: "ios-sample")
+        mesh.start(nickname: defaultNickname())
         isRunning = true
+        refreshMyPeerId()
         append("mesh started")
     }
 
@@ -31,6 +60,13 @@ final class MeshSampleModel: ObservableObject, MeshListener {
         guard isRunning else { return }
         mesh.stop()
         isRunning = false
+        myPeerId = "Not available yet"
+        peers = []
+        selectedPeerId = ""
+        pendingDirectMessages.removeAll()
+        pendingRetryTimers.values.forEach { $0.invalidate() }
+        pendingRetryTimers.removeAll()
+        updatePendingCounts()
         append("mesh stopped")
     }
 
@@ -42,13 +78,92 @@ final class MeshSampleModel: ObservableObject, MeshListener {
         messageText = ""
     }
 
-    func triggerHandshake(with peerID: PeerID) {
-        mesh.triggerHandshake(with: peerID)
-        append("handshake requested: \(peerID.id)")
+    func sendDirect() {
+        let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !selectedPeerId.isEmpty else {
+            append("direct message needs a selected peer and message")
+            return
+        }
+        let peer = PeerID(str: selectedPeerId)
+        let nickname = peerNicknames[peer].flatMap { $0.isEmpty ? nil : $0 } ?? peer.id
+        if mesh.isEstablished(peer) {
+            mesh.sendPrivateMessage(text, to: peer, recipientNickname: nickname)
+            append("sent direct to \(peer.id) (\(nickname)): \(text)")
+        } else {
+            queuePendingDirectMessage(peerId: peer.id, nickname: nickname, content: text)
+            mesh.sendPrivateMessage(text, to: peer, recipientNickname: nickname)
+            append("queued direct to \(peer.id) (\(nickname)): \(text)")
+        }
+        messageText = ""
+    }
+
+    func establishSelectedPeer() {
+        guard canEstablish else {
+            append("mesh is not started")
+            return
+        }
+        let peer = PeerID(str: selectedPeerId)
+        mesh.establish(peer)
+        append("establishing session with \(peer.id)")
     }
 
     func clearLog() {
         logLines.removeAll()
+        append("log cleared")
+    }
+
+    private func refreshMyPeerId() {
+        let peerId = mesh.myPeerId.trimmingCharacters(in: .whitespacesAndNewlines)
+        myPeerId = peerId.isEmpty ? "Not available yet" : peerId
+    }
+
+    private func defaultNickname() -> String {
+        let env = ProcessInfo.processInfo.environment
+        let simulatorName = env["SIMULATOR_DEVICE_NAME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let deviceName = UIDevice.current.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelName = UIDevice.current.model.trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelDisplayName = deviceModelDisplayName().trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseName = simulatorName?.isEmpty == false ? simulatorName! : deviceName
+        if baseName.isEmpty {
+            return "sample"
+        }
+        if modelName.isEmpty || baseName.caseInsensitiveCompare(modelName) == .orderedSame {
+            if !modelDisplayName.isEmpty, baseName.caseInsensitiveCompare(modelDisplayName) != .orderedSame {
+                return modelDisplayName
+            }
+            return baseName
+        }
+        if baseName.localizedCaseInsensitiveContains(modelName) {
+            return baseName
+        }
+        if !modelDisplayName.isEmpty, !baseName.localizedCaseInsensitiveContains(modelDisplayName) {
+            return "\(baseName) \(modelDisplayName)"
+        }
+        return "\(baseName) \(modelName)"
+    }
+
+    private func deviceModelDisplayName() -> String {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        let identifier = withUnsafePointer(to: &systemInfo.machine) { ptr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: 1) {
+                String(cString: $0)
+            }
+        }
+        let map: [String: String] = [
+            "iPhone15,4": "iPhone 15",
+            "iPhone15,5": "iPhone 15 Plus",
+            "iPhone16,1": "iPhone 15 Pro",
+            "iPhone16,2": "iPhone 15 Pro Max"
+        ]
+        if let name = map[identifier] {
+            return name
+        }
+        if identifier == "x86_64" || identifier == "arm64" {
+            let env = ProcessInfo.processInfo.environment
+            return env["SIMULATOR_DEVICE_NAME"] ?? ""
+        }
+        return ""
     }
 
     private func append(_ line: String) {
@@ -61,32 +176,173 @@ final class MeshSampleModel: ObservableObject, MeshListener {
         }
     }
 
-    func onMessageReceived(_ message: BitchatMessage) {
-        append("message from \(message.sender): \(message.content)")
-    }
-
-    func onPeerListUpdated(_ peers: [PeerID]) {
+    private func updatePeers(_ peers: [PeerID]) {
         DispatchQueue.main.async {
             self.peers = peers
             self.peerNicknames = self.mesh.peerNicknames()
+            self.syncSelectedPeer(with: peers)
         }
         append("peers: \(peers.count)")
     }
 
+    private func syncSelectedPeer(with peers: [PeerID]) {
+        let peerIds = peers.map { $0.id }
+        if peerIds.isEmpty {
+            selectedPeerId = ""
+            return
+        }
+        if !peerIds.contains(selectedPeerId) {
+            selectedPeerId = peerIds.first ?? ""
+        }
+    }
+
+    private func queuePendingDirectMessage(peerId: String, nickname: String, content: String) {
+        var queue = pendingDirectMessages[peerId] ?? []
+        queue.append(PendingDirectMessage(peerId: peerId, nickname: nickname, content: content, createdAt: Date()))
+        pendingDirectMessages[peerId] = queue
+        updatePendingCounts()
+        schedulePendingRetry(peerId: peerId)
+    }
+
+    private func flushPendingDirectMessages(peerId: String) {
+        cancelPendingRetry(peerId: peerId)
+        guard let queue = pendingDirectMessages[peerId] else { return }
+        queue.forEach { message in
+            let peer = PeerID(str: message.peerId)
+            mesh.sendPrivateMessage(message.content, to: peer, recipientNickname: message.nickname)
+            append("sent queued direct to \(message.peerId) (\(message.nickname)): \(message.content)")
+        }
+        pendingDirectMessages.removeValue(forKey: peerId)
+        updatePendingCounts()
+    }
+
+    private func clearPendingDirectMessages(peerId: String, reason: String) {
+        cancelPendingRetry(peerId: peerId)
+        if let queue = pendingDirectMessages.removeValue(forKey: peerId), !queue.isEmpty {
+            append("pending direct messages cleared for \(peerId) (\(reason))")
+        }
+        updatePendingCounts()
+    }
+
+    private func schedulePendingRetry(peerId: String) {
+        if pendingRetryTimers[peerId] != nil { return }
+        let timer = Timer.scheduledTimer(withTimeInterval: pendingRetryDelay, repeats: true) { [weak self] timer in
+            guard let self else { return }
+            let peer = PeerID(str: peerId)
+            if self.mesh.isEstablished(peer) {
+                timer.invalidate()
+                self.pendingRetryTimers.removeValue(forKey: peerId)
+                self.flushPendingDirectMessages(peerId: peerId)
+                return
+            }
+            guard var queue = self.pendingDirectMessages[peerId], !queue.isEmpty else {
+                timer.invalidate()
+                self.pendingRetryTimers.removeValue(forKey: peerId)
+                return
+            }
+            let now = Date()
+            queue = queue.filter { message in
+                let expired = now.timeIntervalSince(message.createdAt) > self.pendingTimeout
+                if expired || message.attempts >= self.pendingMaxAttempts {
+                    self.append("direct to \(message.peerId) (\(message.nickname)) failed: session not established")
+                    return false
+                }
+                self.mesh.establish(peer)
+                message.attempts += 1
+                return true
+            }
+            if queue.isEmpty {
+                self.pendingDirectMessages.removeValue(forKey: peerId)
+                timer.invalidate()
+                self.pendingRetryTimers.removeValue(forKey: peerId)
+            } else {
+                self.pendingDirectMessages[peerId] = queue
+            }
+            self.updatePendingCounts()
+        }
+        pendingRetryTimers[peerId] = timer
+    }
+
+    private func cancelPendingRetry(peerId: String) {
+        if let timer = pendingRetryTimers.removeValue(forKey: peerId) {
+            timer.invalidate()
+        }
+    }
+
+    private func updatePendingCounts() {
+        var counts: [String: Int] = [:]
+        for (peerId, queue) in pendingDirectMessages {
+            counts[peerId] = queue.count
+        }
+        pendingDirectCountByPeer = counts
+    }
+
+    func onMessageReceived(_ message: BitchatMessage) {
+        let prefix = message.isPrivate ? "direct" : "broadcast"
+        append("\(prefix) message from \(message.sender): \(message.content)")
+    }
+
+    func onReceived(_ message: BitchatMessage) {
+        append("received \(message.id) from \(message.sender)")
+    }
+
+    func onSent(messageID: String?, recipientPeerID: String?) {
+        let id = messageID ?? "unknown"
+        let recipient = recipientPeerID ?? "broadcast"
+        append("sent \(id) to \(recipient)")
+    }
+
+    func onPeerListUpdated(_ peers: [PeerID]) {
+        updatePeers(peers)
+    }
+
+    func onFound(_ peerID: PeerID) {
+        append("found \(peerID.id)")
+    }
+
+    func onLost(_ peerID: PeerID) {
+        append("lost \(peerID.id)")
+        clearPendingDirectMessages(peerId: peerID.id, reason: "lost")
+    }
+
     func onPeerConnected(_ peerID: PeerID) {
-        append("connected: \(peerID.id)")
+        append("connected \(peerID.id)")
     }
 
     func onPeerDisconnected(_ peerID: PeerID) {
-        append("disconnected: \(peerID.id)")
+        append("disconnected \(peerID.id)")
+        clearPendingDirectMessages(peerId: peerID.id, reason: "disconnected")
+    }
+
+    func onEstablished(_ peerID: PeerID) {
+        append("session established \(peerID.id)")
+        flushPendingDirectMessages(peerId: peerID.id)
+    }
+
+    func onStarted() {
+        refreshMyPeerId()
+        isRunning = true
+    }
+
+    func onStopped() {
+        isRunning = false
     }
 
     func onDeliveryAck(messageID: String, recipientNickname: String, timestamp: Date) {
-        append("delivered to \(recipientNickname) (\(messageID.prefix(8)))")
+        append("delivered to \(recipientNickname) (\(messageID))")
     }
 
     func onReadReceipt(messageID: String, recipientNickname: String, timestamp: Date) {
-        append("read by \(recipientNickname) (\(messageID.prefix(8)))")
+        append("read by \(recipientNickname) (\(messageID))")
+    }
+
+    func onVerifyChallenge(peerID: PeerID, payload: Data, timestamp: Date) {
+        append("handshake initiated by \(peerID.id)")
+    }
+
+    func onVerifyResponse(peerID: PeerID, payload: Data, timestamp: Date) {
+        append("verify response from \(peerID.id)")
+        flushPendingDirectMessages(peerId: peerID.id)
     }
 
     func onBluetoothStateUpdated(_ state: CBManagerState) {
@@ -100,126 +356,219 @@ final class MeshSampleModel: ObservableObject, MeshListener {
     func onNoisePayloadReceived(from peerID: PeerID, type: NoisePayloadType, payload: Data, timestamp: Date) {
         append("noise payload \(type) from \(peerID.id)")
     }
+
+    private final class PendingDirectMessage {
+        let peerId: String
+        let nickname: String
+        let content: String
+        let createdAt: Date
+        var attempts: Int
+
+        init(peerId: String, nickname: String, content: String, createdAt: Date, attempts: Int = 0) {
+            self.peerId = peerId
+            self.nickname = nickname
+            self.content = content
+            self.createdAt = createdAt
+            self.attempts = attempts
+        }
+    }
 }
 
 struct ContentView: View {
     @ObservedObject var model: MeshSampleModel
     @State private var autoScroll = true
-    @State private var selectedTab = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
+            HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Mesh Sample")
                         .font(.title2.bold())
-                    Text("Peers: \(model.peers.count)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(MeshSamplePalette.textPrimary)
+                    Text("BLE mesh discovery, messaging, and debug telemetry")
+                        .font(.footnote)
+                        .foregroundColor(MeshSamplePalette.textSecondary)
                 }
                 Spacer()
                 Text(model.isRunning ? "Running" : "Stopped")
                     .font(.footnote.weight(.semibold))
+                    .foregroundColor(MeshSamplePalette.statusText)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(model.isRunning ? Color.green.opacity(0.2) : Color.gray.opacity(0.2))
+                    .background(model.isRunning ? MeshSamplePalette.statusRunning : MeshSamplePalette.statusIdle)
                     .clipShape(Capsule())
             }
 
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("My peer ID")
+                    .font(.caption)
+                    .foregroundColor(MeshSamplePalette.textSecondary)
+                Text(model.myPeerId)
+                    .font(.caption)
+                    .foregroundColor(MeshSamplePalette.textPrimary)
+            }
+
             HStack(spacing: 12) {
-                Button(model.isRunning ? "Restart" : "Start") {
+                Button("Start mesh") {
                     model.start()
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(MeshSamplePalette.primary)
 
-                Button("Stop") {
+                Button("Stop mesh") {
                     model.stop()
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
+                .tint(MeshSamplePalette.secondary)
             }
 
-            Picker("View", selection: $selectedTab) {
-                Text("Console").tag(0)
-                Text("Quick connect").tag(1)
+            TextField("Write a message", text: $model.messageText)
+                .textFieldStyle(.plain)
+                .padding(12)
+                .background(MeshSamplePalette.surfaceAlt)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(MeshSamplePalette.inputBorder, lineWidth: 1)
+                )
+
+            Button("Send broadcast") {
+                model.sendBroadcast()
             }
-            .pickerStyle(.segmented)
+            .buttonStyle(.borderedProminent)
+            .tint(MeshSamplePalette.primary)
 
-            if selectedTab == 0 {
-                HStack(spacing: 12) {
-                    TextField("Write a message", text: $model.messageText)
-                        .textFieldStyle(.roundedBorder)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Direct message")
+                    .font(.headline)
+                    .foregroundColor(MeshSamplePalette.textPrimary)
 
-                    Button("Send") {
-                        model.sendBroadcast()
+                Picker("Peer", selection: $model.selectedPeerId) {
+                    ForEach(peerOptions) { option in
+                        Text(option.label).tag(option.id)
                     }
-                    .buttonStyle(.borderedProminent)
                 }
+                .pickerStyle(.menu)
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(MeshSamplePalette.surfaceAlt)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(MeshSamplePalette.inputBorder, lineWidth: 1)
+                )
 
-                HStack {
-                    Toggle("Auto-scroll", isOn: $autoScroll)
-                    Spacer()
+                Button("Establish session") {
+                    model.establishSelectedPeer()
+                }
+                .buttonStyle(.bordered)
+                .tint(MeshSamplePalette.surfaceAlt)
+                .foregroundColor(MeshSamplePalette.textPrimary)
+                .disabled(!model.canEstablish)
+
+                Text(model.sessionStatusText)
+                    .font(.caption)
+                    .foregroundColor(model.selectedPeerId.isEmpty ? MeshSamplePalette.textHint : MeshSamplePalette.textSecondary)
+
+                Button("Send direct") {
+                    model.sendDirect()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(MeshSamplePalette.secondary)
+
+                if model.pendingCount > 0 {
+                    Text("Pending direct: \(model.pendingCount)")
+                        .font(.caption)
+                        .foregroundColor(MeshSamplePalette.textSecondary)
+
+                    Text("Handshake pending")
+                        .font(.caption2.weight(.medium))
+                        .foregroundColor(MeshSamplePalette.textSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(MeshSamplePalette.statusIdle)
+                        .clipShape(Capsule())
+                }
+            }
+
+            HStack(spacing: 12) {
+                Text("Debug log")
+                    .font(.headline)
+                    .foregroundColor(MeshSamplePalette.textPrimary)
+                Spacer()
+                HStack(spacing: 10) {
+                    Text("Auto-scroll")
+                        .font(.caption)
+                        .foregroundColor(MeshSamplePalette.textSecondary)
+                    Toggle("", isOn: $autoScroll)
+                        .labelsHidden()
                     Button("Clear") {
                         model.clearLog()
                     }
+                    .buttonStyle(.bordered)
+                    .tint(MeshSamplePalette.surfaceAlt)
                 }
+            }
 
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 6) {
-                            ForEach(Array(model.logLines.enumerated()), id: \.offset) { index, line in
-                                Text(line)
-                                    .font(.system(.footnote, design: .monospaced))
-                                    .foregroundColor(.primary)
-                                    .id(index)
-                            }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(model.logLines.enumerated()), id: \.offset) { index, line in
+                            Text(line)
+                                .font(.system(.footnote, design: .monospaced))
+                                .foregroundColor(MeshSamplePalette.textPrimary)
+                                .id(index)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .background(Color.black.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .onChange(of: model.logLines.count) { count in
-                        guard autoScroll, count > 0 else { return }
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            proxy.scrollTo(count - 1, anchor: .bottom)
-                        }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                }
+                .background(MeshSamplePalette.surfaceAlt)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(MeshSamplePalette.logBorder, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .onChange(of: model.logLines.count) { count in
+                    guard autoScroll, count > 0 else { return }
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo(count - 1, anchor: .bottom)
                     }
                 }
-            } else {
-                QuickConnectView(model: model)
             }
         }
-        .padding()
+        .padding(20)
+        .background(MeshSamplePalette.surface)
+    }
+
+    private var peerOptions: [PeerOption] {
+        if model.peers.isEmpty {
+            return [PeerOption(id: "", label: "No peers found")]
+        }
+        return model.peers.map { peer in
+            let nickname = model.peerNicknames[peer]
+            if let nickname, !nickname.isEmpty {
+                return PeerOption(id: peer.id, label: "\(peer.id) (\(nickname))")
+            }
+            return PeerOption(id: peer.id, label: peer.id)
+        }
     }
 }
 
-struct QuickConnectView: View {
-    @ObservedObject var model: MeshSampleModel
+private struct PeerOption: Identifiable {
+    let id: String
+    let label: String
+}
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if model.peers.isEmpty {
-                Text("No nearby peers yet.")
-                    .foregroundColor(.secondary)
-            } else {
-                List(model.peers, id: \.self) { peer in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(model.peerNicknames[peer] ?? peer.id)
-                                .font(.headline)
-                            Text(peer.id)
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Button("Handshake") {
-                            model.triggerHandshake(with: peer)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    .padding(.vertical, 4)
-                }
-                .listStyle(.plain)
-            }
-        }
-    }
+private enum MeshSamplePalette {
+    static let primary = Color(red: 0.12, green: 0.44, blue: 0.92)
+    static let secondary = Color(red: 0.18, green: 0.2, blue: 0.23)
+    static let surface = Color(red: 0.96, green: 0.97, blue: 0.98)
+    static let surfaceAlt = Color.white
+    static let textPrimary = Color(red: 0.06, green: 0.09, blue: 0.17)
+    static let textSecondary = Color(red: 0.29, green: 0.33, blue: 0.39)
+    static let textHint = Color(red: 0.58, green: 0.64, blue: 0.72)
+    static let statusText = Color(red: 0.06, green: 0.09, blue: 0.17)
+    static let statusIdle = Color(red: 0.89, green: 0.91, blue: 0.94)
+    static let statusRunning = Color(red: 0.86, green: 0.99, blue: 0.91)
+    static let logBorder = Color(red: 0.82, green: 0.84, blue: 0.87)
+    static let inputBorder = Color(red: 0.8, green: 0.84, blue: 0.88)
 }
