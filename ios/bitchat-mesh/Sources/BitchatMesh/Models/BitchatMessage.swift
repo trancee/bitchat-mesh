@@ -90,7 +90,7 @@ extension BitchatMessage: Equatable {
 // MARK: - Binary encoding
 
 extension BitchatMessage {
-    func toBinaryPayload() -> Data? {
+    public func toBinaryPayload() -> Data? {
         var data = Data()
         
         // Message format:
@@ -185,7 +185,7 @@ extension BitchatMessage {
         return data
     }
     
-    convenience init?(_ data: Data) {
+    public convenience init?(_ data: Data) {
         // Create an immutable copy to prevent threading issues
         let dataCopy = Data(data)
         

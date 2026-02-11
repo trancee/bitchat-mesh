@@ -1,5 +1,4 @@
 import Foundation
-import CoreGraphics
 
 /// Centralized knobs for transport- and UI-related limits.
 /// Keep values aligned with existing behavior when replacing magic numbers.
@@ -22,6 +21,7 @@ enum TransportConfig {
 
     // Timers
     static let networkResetGraceSeconds: TimeInterval = 600 // 10 minutes
+    static let networkNotificationCooldownSeconds: TimeInterval = 300 // 5 minutes
     static let basePublicFlushInterval: TimeInterval = 0.08  // ~12.5 fps batching
 
     // BLE duty/announce/connect
@@ -45,7 +45,6 @@ enum TransportConfig {
     static let uiLateInsertThreshold: TimeInterval = 15.0
     // Geohash public chats are more sensitive to ordering; use a tighter threshold
     static let uiLateInsertThresholdGeo: TimeInterval = 0.0
-    static let uiProcessedNostrEventsCap: Int = 2000
     static let uiChannelInactivityThresholdSeconds: TimeInterval = 9 * 60
     
     // UI rate limiters (token buckets)
@@ -84,7 +83,7 @@ enum TransportConfig {
     // Lowered to make connected→reachable icon changes react faster when walking out of range
     static let blePeerInactivityTimeoutSeconds: TimeInterval = 8.0
     // How long to retain a peer as "reachable" (not directly connected) since lastSeen
-    static let bleReachabilityRetentionVerifiedSeconds: TimeInterval = 21.0    // 21s for verified/favorites
+    static let bleReachabilityRetentionVerifiedSeconds: TimeInterval = 21.0    // 21s for verified peers
     static let bleReachabilityRetentionUnverifiedSeconds: TimeInterval = 21.0  // 21s for unknown/unverified
     static let bleFragmentLifetimeSeconds: TimeInterval = 30.0
     static let bleIngressRecordLifetimeSeconds: TimeInterval = 3.0
@@ -94,11 +93,12 @@ enum TransportConfig {
     // Keep scanning fully ON when we saw traffic very recently
     static let bleRecentTrafficForceScanSeconds: TimeInterval = 10.0
     static let bleThreadSleepWriteShortDelaySeconds: TimeInterval = 0.05
-    static let bleExpectedWritePerFragmentMs: Int = 8
-    static let bleExpectedWriteMaxMs: Int = 2000
-    // Faster fragment pacing; use slightly tighter spacing for directed trains
-    static let bleFragmentSpacingMs: Int = 5
-    static let bleFragmentSpacingDirectedMs: Int = 4
+    static let bleExpectedWritePerFragmentMs: Int = 20
+    static let bleExpectedWriteMaxMs: Int = 5000
+    // Fragment pacing: Conservative spacing to prevent BLE buffer overflow
+    // Aggressive pacing causes packet loss; needs 25-30ms between fragments for reliable delivery
+    static let bleFragmentSpacingMs: Int = 30
+    static let bleFragmentSpacingDirectedMs: Int = 25
     static let bleAnnounceIntervalSeconds: TimeInterval = 4.0
     static let bleDutyOnDurationDense: TimeInterval = 3.0
     static let bleDutyOffDurationDense: TimeInterval = 15.0
@@ -134,6 +134,14 @@ enum TransportConfig {
     static let blePostSubscribeAnnounceDelaySeconds: TimeInterval = 0.05
     static let blePostAnnounceDelaySeconds: TimeInterval = 0.4
     static let bleForceAnnounceMinIntervalSeconds: TimeInterval = 0.15
+
+    // BCH-01-004: Rate-limiting for subscription-triggered announces
+    // Prevents rapid enumeration attacks by rate-limiting announce responses
+    static let bleSubscriptionRateLimitMinSeconds: TimeInterval = 2.0       // Minimum interval between announces per central
+    static let bleSubscriptionRateLimitBackoffFactor: Double = 2.0          // Exponential backoff multiplier
+    static let bleSubscriptionRateLimitMaxBackoffSeconds: TimeInterval = 30.0  // Maximum backoff period
+    static let bleSubscriptionRateLimitWindowSeconds: TimeInterval = 60.0   // Window for tracking subscription attempts
+    static let bleSubscriptionRateLimitMaxAttempts: Int = 5                 // Max attempts before extended cooldown
 
     // Store-and-forward for directed packets at relays
     static let bleDirectedSpoolWindowSeconds: TimeInterval = 15.0
@@ -176,4 +184,18 @@ enum TransportConfig {
     static let uiShareExtensionDismissDelaySeconds: TimeInterval = 2.0
     static let uiShareAcceptWindowSeconds: TimeInterval = 30.0
     static let uiMigrationCutoffSeconds: TimeInterval = 24 * 60 * 60
+
+    // Gossip Sync Configuration
+    static let syncSeenCapacity: Int = 1000
+    static let syncGCSMaxBytes: Int = 400
+    static let syncGCSTargetFpr: Double = 0.01
+    static let syncMaxMessageAgeSeconds: TimeInterval = 900
+    static let syncMaintenanceIntervalSeconds: TimeInterval = 30.0
+    static let syncStalePeerCleanupIntervalSeconds: TimeInterval = 60.0
+    static let syncStalePeerTimeoutSeconds: TimeInterval = 60.0
+    static let syncFragmentCapacity: Int = 600
+    static let syncFileTransferCapacity: Int = 200
+    static let syncFragmentIntervalSeconds: TimeInterval = 30.0
+    static let syncFileTransferIntervalSeconds: TimeInterval = 60.0
+    static let syncMessageIntervalSeconds: TimeInterval = 15.0
 }

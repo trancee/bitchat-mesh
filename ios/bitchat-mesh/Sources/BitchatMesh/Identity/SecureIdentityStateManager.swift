@@ -106,11 +106,6 @@ protocol SecureIdentityStateManagerProtocol {
     func getCryptoIdentitiesByPeerIDPrefix(_ peerID: PeerID) -> [CryptographicIdentity]
     func updateSocialIdentity(_ identity: SocialIdentity)
     
-    // MARK: Favorites Management
-    func getFavorites() -> Set<String>
-    func setFavorite(_ fingerprint: String, isFavorite: Bool)
-    func isFavorite(fingerprint: String) -> Bool
-    
     // MARK: Blocked Users Management
     func isBlocked(fingerprint: String) -> Bool
     func setBlocked(_ fingerprint: String, isBlocked: Bool)
@@ -298,7 +293,6 @@ final class SecureIdentityStateManager: SecureIdentityStateManagerProtocol {
                     localPetname: nil,
                     claimedNickname: claimed,
                     trustLevel: .unknown,
-                    isFavorite: false,
                     isBlocked: false,
                     notes: nil
                 )
@@ -350,45 +344,6 @@ final class SecureIdentityStateManager: SecureIdentityStateManagerProtocol {
         }
     }
     
-    // MARK: - Favorites Management
-    
-    func getFavorites() -> Set<String> {
-        queue.sync {
-            let favorites = cache.socialIdentities.values
-                .filter { $0.isFavorite }
-                .map { $0.fingerprint }
-            return Set(favorites)
-        }
-    }
-    
-    func setFavorite(_ fingerprint: String, isFavorite: Bool) {
-        queue.async(flags: .barrier) {
-            if var identity = self.cache.socialIdentities[fingerprint] {
-                identity.isFavorite = isFavorite
-                self.cache.socialIdentities[fingerprint] = identity
-            } else {
-                // Create new social identity for this fingerprint
-                let newIdentity = SocialIdentity(
-                    fingerprint: fingerprint,
-                    localPetname: nil,
-                    claimedNickname: "Unknown",
-                    trustLevel: .unknown,
-                    isFavorite: isFavorite,
-                    isBlocked: false,
-                    notes: nil
-                )
-                self.cache.socialIdentities[fingerprint] = newIdentity
-            }
-            self.saveIdentityCache()
-        }
-    }
-    
-    func isFavorite(fingerprint: String) -> Bool {
-        queue.sync {
-            return cache.socialIdentities[fingerprint]?.isFavorite ?? false
-        }
-    }
-    
     // MARK: - Blocked Users Management
     
     func isBlocked(fingerprint: String) -> Bool {
@@ -403,9 +358,6 @@ final class SecureIdentityStateManager: SecureIdentityStateManagerProtocol {
         queue.async(flags: .barrier) {
             if var identity = self.cache.socialIdentities[fingerprint] {
                 identity.isBlocked = isBlocked
-                if isBlocked {
-                    identity.isFavorite = false  // Can't be both favorite and blocked
-                }
                 self.cache.socialIdentities[fingerprint] = identity
             } else {
                 // Create new social identity for this fingerprint
@@ -414,7 +366,6 @@ final class SecureIdentityStateManager: SecureIdentityStateManagerProtocol {
                     localPetname: nil,
                     claimedNickname: "Unknown",
                     trustLevel: .unknown,
-                    isFavorite: false,
                     isBlocked: isBlocked,
                     notes: nil
                 )
@@ -423,7 +374,7 @@ final class SecureIdentityStateManager: SecureIdentityStateManagerProtocol {
             self.saveIdentityCache()
         }
     }
-
+    
     // MARK: - Ephemeral Session Management
     
     func registerEphemeralSession(peerID: PeerID, handshakeState: HandshakeState = .none) {

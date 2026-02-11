@@ -1,22 +1,23 @@
 import Foundation
 
 /// QR verification scaffolding: schema, signing, and basic challenge/response helpers.
-public final class VerificationService {
-    public static let shared = VerificationService()
+final class VerificationService {
+    static let shared = VerificationService()
 
     // Injected Noise service from the running transport (do NOT create new BLEService)
     private var noise: NoiseEncryptionService?
     func configure(with noise: NoiseEncryptionService) { self.noise = noise }
 
     /// Encapsulates the data encoded into a verification QR
-    public struct VerificationQR: Codable {
-        public let v: Int
-        public let noiseKeyHex: String
-        public let signKeyHex: String
-        public let nickname: String
-        public let ts: Int64
-        public let nonceB64: String
-        public var sigHex: String
+    struct VerificationQR: Codable {
+        let v: Int
+        let noiseKeyHex: String
+        let signKeyHex: String
+        let npub: String?
+        let nickname: String
+        let ts: Int64
+        let nonceB64: String
+        var sigHex: String
 
         static let context = "bitchat-verify-v1"
 
@@ -32,13 +33,14 @@ public final class VerificationService {
             appendField(String(v))
             appendField(noiseKeyHex.lowercased())
             appendField(signKeyHex.lowercased())
+            appendField(npub ?? "")
             appendField(nickname)
             appendField(String(ts))
             appendField(nonceB64)
             return out
         }
 
-        public func toURLString() -> String {
+        func toURLString() -> String {
             var comps = URLComponents()
             comps.scheme = "bitchat"
             comps.host = "verify"
@@ -50,11 +52,11 @@ public final class VerificationService {
                 URLQueryItem(name: "ts", value: String(ts)),
                 URLQueryItem(name: "nonce", value: nonceB64),
                 URLQueryItem(name: "sig", value: sigHex)
-            ]
+            ] + (npub != nil ? [URLQueryItem(name: "npub", value: npub)] : [])
             return comps.string ?? ""
         }
 
-        public static func fromURL(_ url: URL) -> VerificationQR? {
+        static func fromURL(_ url: URL) -> VerificationQR? {
             guard url.scheme == "bitchat", url.host == "verify",
                   let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else { return nil }
             func val(_ name: String) -> String? { items.first(where: { $0.name == name })?.value }
@@ -62,17 +64,17 @@ public final class VerificationService {
                   let noise = val("noise"), let sign = val("sign"),
                   let nick = val("nick"), let tsStr = val("ts"), let ts = Int64(tsStr),
                   let nonce = val("nonce"), let sig = val("sig") else { return nil }
-            return VerificationQR(v: v, noiseKeyHex: noise, signKeyHex: sign, nickname: nick, ts: ts, nonceB64: nonce, sigHex: sig)
+            return VerificationQR(v: v, noiseKeyHex: noise, signKeyHex: sign, npub: val("npub"), nickname: nick, ts: ts, nonceB64: nonce, sigHex: sig)
         }
     }
 
     // MARK: - Public API
 
     /// Build a signed QR string for the current identity
-    public func buildMyQRString(nickname: String) -> String? {
+    func buildMyQRString(nickname: String, npub: String?) -> String? {
         // Simple short-lived cache to speed up sheet opening
-        struct Cache { static var last: (nick: String, builtAt: Date, value: String)? }
-        if let c = Cache.last, c.nick == nickname, Date().timeIntervalSince(c.builtAt) < 60 {
+        struct Cache { static var last: (nick: String, npub: String?, builtAt: Date, value: String)? }
+        if let c = Cache.last, c.nick == nickname, c.npub == npub, Date().timeIntervalSince(c.builtAt) < 60 {
             return c.value
         }
         guard let noise = noise else { return nil }
@@ -82,23 +84,24 @@ public final class VerificationService {
         var nonce = Data(count: 16)
         _ = nonce.withUnsafeMutableBytes { SecRandomCopyBytes(kSecRandomDefault, 16, $0.baseAddress!) }
         let nonceB64 = nonce.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
-        let payload = VerificationQR(v: 1, noiseKeyHex: noiseKey, signKeyHex: signKey, nickname: nickname, ts: ts, nonceB64: nonceB64, sigHex: "")
+        let payload = VerificationQR(v: 1, noiseKeyHex: noiseKey, signKeyHex: signKey, npub: npub, nickname: nickname, ts: ts, nonceB64: nonceB64, sigHex: "")
         let msg = payload.canonicalBytes()
         guard let sig = noise.signData(msg) else { return nil }
         let signed = VerificationQR(v: payload.v,
                                     noiseKeyHex: payload.noiseKeyHex,
                                     signKeyHex: payload.signKeyHex,
+                                    npub: payload.npub,
                                     nickname: payload.nickname,
                                     ts: payload.ts,
                                     nonceB64: payload.nonceB64,
                                     sigHex: sig.hexEncodedString())
         let out = signed.toURLString()
-        Cache.last = (nickname, Date(), out)
+        Cache.last = (nickname, npub, Date(), out)
         return out
     }
 
     /// Verify a scanned QR and return the parsed payload if valid (signature + freshness checks)
-    public func verifyScannedQR(_ urlString: String, maxAge: TimeInterval = 300) -> VerificationQR? {
+    func verifyScannedQR(_ urlString: String, maxAge: TimeInterval = TransportConfig.verificationQRMaxAgeSeconds) -> VerificationQR? {
         guard let url = URL(string: urlString), let qr = VerificationQR.fromURL(url) else { return nil }
         // Freshness
         let now = Date().timeIntervalSince1970
@@ -112,7 +115,7 @@ public final class VerificationService {
 
     // MARK: - Noise payloads (scaffold only)
 
-    public func buildVerifyChallenge(noiseKeyHex: String, nonceA: Data) -> Data {
+    func buildVerifyChallenge(noiseKeyHex: String, nonceA: Data) -> Data {
         // TLV: [0x01 len noiseKeyHex ascii] [0x02 len nonceA]
         var tlv = Data()
         let n0: [UInt8] = [0x01, UInt8(min(noiseKeyHex.count, 255))]
@@ -124,7 +127,7 @@ public final class VerificationService {
         return NoisePayload(type: .verifyChallenge, data: tlv).encode()
     }
 
-    public func buildVerifyResponse(noiseKeyHex: String, nonceA: Data) -> Data? {
+    func buildVerifyResponse(noiseKeyHex: String, nonceA: Data) -> Data? {
         // Sign context: verify-response | noiseKeyHex | nonceA
         var msg = Data("bitchat-verify-resp-v1".utf8)
         let nk = noiseKeyHex.data(using: .utf8) ?? Data()
@@ -138,7 +141,7 @@ public final class VerificationService {
         return NoisePayload(type: .verifyResponse, data: tlv).encode()
     }
 
-    public func parseVerifyChallenge(_ data: Data) -> (noiseKeyHex: String, nonceA: Data)? {
+    func parseVerifyChallenge(_ data: Data) -> (noiseKeyHex: String, nonceA: Data)? {
         var idx = 0
         func take(_ n: Int) -> Data? {
             guard idx + n <= data.count else { return nil }
@@ -155,7 +158,7 @@ public final class VerificationService {
         return (noiseStr, nA)
     }
 
-    public func parseVerifyResponse(_ data: Data) -> (noiseKeyHex: String, nonceA: Data, signature: Data)? {
+    func parseVerifyResponse(_ data: Data) -> (noiseKeyHex: String, nonceA: Data, signature: Data)? {
         var idx = 0
         func take(_ n: Int) -> Data? {
             guard idx + n <= data.count else { return nil }
@@ -170,7 +173,7 @@ public final class VerificationService {
         return (noiseStr, nA, sig)
     }
 
-    public func verifyResponseSignature(noiseKeyHex: String, nonceA: Data, signature: Data, signerPublicKeyHex: String) -> Bool {
+    func verifyResponseSignature(noiseKeyHex: String, nonceA: Data, signature: Data, signerPublicKeyHex: String) -> Bool {
         var msg = Data("bitchat-verify-resp-v1".utf8)
         let nk = noiseKeyHex.data(using: .utf8) ?? Data()
         msg.append(UInt8(min(nk.count, 255))); msg.append(nk.prefix(255))

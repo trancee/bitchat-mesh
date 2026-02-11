@@ -66,7 +66,7 @@ import CoreBluetooth
 /// Simplified BitChat protocol message types.
 /// Reduced from 24 types to just 6 essential ones.
 /// All private communication metadata (receipts, status) is embedded in noiseEncrypted payloads.
-public enum MessageType: UInt8 {
+enum MessageType: UInt8 {
     // Public messages (unencrypted)
     case announce = 0x01        // "I'm here" with nickname
     case message = 0x02         // Public chat message  
@@ -109,7 +109,7 @@ public enum NoisePayloadType: UInt8 {
     case verifyChallenge = 0x10     // Verification challenge
     case verifyResponse  = 0x11     // Verification response
     
-    var description: String {
+    public var description: String {
         switch self {
         case .privateMessage: return "privateMessage"
         case .readReceipt: return "readReceipt"
@@ -123,7 +123,7 @@ public enum NoisePayloadType: UInt8 {
 // MARK: - Handshake State
 
 // Lazy handshake state tracking
-public enum LazyHandshakeState {
+enum LazyHandshakeState {
     case none                    // No session, no handshake attempted
     case handshakeQueued        // User action requires handshake
     case handshaking           // Currently in handshake process
@@ -142,7 +142,7 @@ public enum DeliveryStatus: Codable, Equatable, Hashable {
     case failed(reason: String)
     case partiallyDelivered(reached: Int, total: Int)  // For rooms
     
-    var displayText: String {
+    public var displayText: String {
         switch self {
         case .sending:
             return "Sending..."
@@ -168,9 +168,6 @@ protocol BitchatDelegate: AnyObject {
     func didDisconnectFromPeer(_ peerID: PeerID)
     func didUpdatePeerList(_ peers: [PeerID])
 
-    // Optional method to check if a fingerprint belongs to a favorite peer
-    func isFavorite(fingerprint: String) -> Bool
-
     func didUpdateMessageDeliveryStatus(_ messageID: String, status: DeliveryStatus)
 
     // Low-level events for better separation of concerns
@@ -183,10 +180,6 @@ protocol BitchatDelegate: AnyObject {
 
 // Provide default implementation to make it effectively optional
 extension BitchatDelegate {
-    func isFavorite(fingerprint: String) -> Bool {
-        return false
-    }
-    
     func didUpdateMessageDeliveryStatus(_ messageID: String, status: DeliveryStatus) {
         // Default empty implementation
     }

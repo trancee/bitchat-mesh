@@ -38,3 +38,14 @@ If you send files, also include `NSPhotoLibraryAddUsageDescription` as needed.
 - `MeshManager` wraps `BLEService` and exposes a focused API for start/stop and messaging.
 - QR verification is supported via `VerificationService` without Nostr fields.
 - Identity keys are stored in the keychain using `MeshConfiguration` defaults.
+
+## Upstream Sync
+
+Sync date: 2026-02-11
+Version: 124.4
+
+- Re-synced protocol, identity, noise, sync, and BLE service sources from the app.
+- Removed Nostr/favorites and UI-only helpers to keep the package mesh-only.
+- Restored public API surface for core models and file transfer packets.
+- Aligned keychain configuration with `MeshConfiguration`.
+- Added sync log category and tightened TLV/binary decoding behavior.

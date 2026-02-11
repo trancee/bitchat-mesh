@@ -21,9 +21,7 @@ struct AnnouncementPacket {
         data.reserveCapacity(2 + min(nickname.count, 255) + 2 + noisePublicKey.count + 2 + signingPublicKey.count)
 
         // TLV for nickname
-          guard let nicknameData = nickname.data(using: .utf8),
-              !nicknameData.isEmpty,
-              nicknameData.count <= 255 else { return nil }
+        guard let nicknameData = nickname.data(using: .utf8), !nicknameData.isEmpty, nicknameData.count <= 255 else { return nil }
         data.append(TLVType.nickname.rawValue)
         data.append(UInt8(nicknameData.count))
         data.append(nicknameData)
@@ -73,15 +71,15 @@ struct AnnouncementPacket {
             if let type = TLVType(rawValue: typeRaw) {
                 switch type {
                 case .nickname:
-                    if let decoded = String(data: value, encoding: .utf8), !decoded.isEmpty {
-                        nickname = decoded
+                    if length > 0 {
+                        nickname = String(data: value, encoding: .utf8)
                     }
                 case .noisePublicKey:
-                    if !value.isEmpty {
+                    if length > 0 {
                         noisePublicKey = Data(value)
                     }
                 case .signingPublicKey:
-                    if !value.isEmpty {
+                    if length > 0 {
                         signingPublicKey = Data(value)
                     }
                 case .directNeighbors:
@@ -126,17 +124,13 @@ struct PrivateMessagePacket {
         data.reserveCapacity(2 + min(messageID.count, 255) + 2 + min(content.count, 255))
 
         // TLV for messageID
-          guard let messageIDData = messageID.data(using: .utf8),
-              !messageIDData.isEmpty,
-              messageIDData.count <= 255 else { return nil }
+        guard let messageIDData = messageID.data(using: .utf8), !messageIDData.isEmpty, messageIDData.count <= 255 else { return nil }
         data.append(TLVType.messageID.rawValue)
         data.append(UInt8(messageIDData.count))
         data.append(messageIDData)
 
         // TLV for content
-          guard let contentData = content.data(using: .utf8),
-              !contentData.isEmpty,
-              contentData.count <= 255 else { return nil }
+        guard let contentData = content.data(using: .utf8), !contentData.isEmpty, contentData.count <= 255 else { return nil }
         data.append(TLVType.content.rawValue)
         data.append(UInt8(contentData.count))
         data.append(contentData)
@@ -162,9 +156,13 @@ struct PrivateMessagePacket {
 
             switch type {
             case .messageID:
-                messageID = String(data: value, encoding: .utf8)
+                if length > 0 {
+                    messageID = String(data: value, encoding: .utf8)
+                }
             case .content:
-                content = String(data: value, encoding: .utf8)
+                if length > 0 {
+                    content = String(data: value, encoding: .utf8)
+                }
             }
         }
 

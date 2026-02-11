@@ -109,14 +109,6 @@ enum ChannelID: Equatable, Codable {
         }
     }
 
-    /// Nostr tag value for scoping (geohash), if applicable.
-    var nostrGeohashTag: String? {
-        switch self {
-        case .mesh: return nil
-        case .location(let ch): return ch.geohash
-        }
-    }
-    
     var isMesh: Bool {
         switch self {
         case .mesh:     true

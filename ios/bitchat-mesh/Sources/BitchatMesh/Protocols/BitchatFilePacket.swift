@@ -17,7 +17,7 @@ public struct BitchatFilePacket {
     public var mimeType: String?
     public var content: Data
 
-    public init(fileName: String?, fileSize: UInt64?, mimeType: String?, content: Data) {
+    public init(fileName: String? = nil, fileSize: UInt64? = nil, mimeType: String? = nil, content: Data) {
         self.fileName = fileName
         self.fileSize = fileSize
         self.mimeType = mimeType

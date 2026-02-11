@@ -18,8 +18,6 @@ enum CommandInfo: String, Identifiable {
     case slap
     case unblock
     case who
-    case favorite
-    case unfavorite
     
     var id: String { rawValue }
     
@@ -27,7 +25,7 @@ enum CommandInfo: String, Identifiable {
     
     var placeholder: String? {
         switch self {
-        case .block, .hug, .message, .slap, .unblock, .favorite, .unfavorite:
+        case .block, .hug, .message, .slap, .unblock:
             return "<" + String(localized: "content.input.nickname_placeholder") + ">"
         case .clear, .who:
             return nil
@@ -43,16 +41,12 @@ enum CommandInfo: String, Identifiable {
         case .slap:         String(localized: "content.commands.slap")
         case .unblock:      String(localized: "content.commands.unblock")
         case .who:          String(localized: "content.commands.who")
-        case .favorite:     String(localized: "content.commands.favorite")
-        case .unfavorite:   String(localized: "content.commands.unfavorite")
         }
     }
     
     static func all(isGeoPublic: Bool, isGeoDM: Bool) -> [CommandInfo] {
-        let baseCommands: [CommandInfo] = [.block, .unblock, .clear, .hug, .message, .slap, .who]
-        if isGeoPublic || isGeoDM {
-            return baseCommands + [.favorite, .unfavorite]
-        }
-        return baseCommands
+        _ = isGeoPublic
+        _ = isGeoDM
+        return [.block, .unblock, .clear, .hug, .message, .slap, .who]
     }
 }

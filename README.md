@@ -108,3 +108,6 @@ Keep the libraries aligned with the upstream app sources:
 For Android, follow the upstream sync workflow and directory mapping in
 [android/UPSTREAM_SYNC.md](android/UPSTREAM_SYNC.md). It documents which packages are synced
 verbatim, which are excluded (Tor/Nostr), and the recommended review steps after copying changes.
+
+For iOS sync notes and the current upstream version, see
+[ios/bitchat-mesh/README.md](ios/bitchat-mesh/README.md).

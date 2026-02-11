@@ -11,7 +11,6 @@ enum Geohash {
     }()
 
     /// Validates a geohash string for building-level precision (8 characters).
-    /// Rules: 8 characters, base32 charset only (no a/i/l/o), case-insensitive.
     /// - Parameter geohash: The geohash string to validate
     /// - Returns: true if valid 8-character base32 geohash, false otherwise
     static func isValidBuildingGeohash(_ geohash: String) -> Bool {

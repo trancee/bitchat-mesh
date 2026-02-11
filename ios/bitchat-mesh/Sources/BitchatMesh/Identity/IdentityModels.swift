@@ -38,7 +38,7 @@
 /// ### Layer 3: Social Identity
 /// - User-assigned names (petnames) for contacts
 /// - Trust levels from unknown to verified
-/// - Favorite/blocked status
+/// - Blocked status
 /// - Personal notes and metadata
 ///
 /// ## Privacy Design
@@ -120,7 +120,6 @@ struct SocialIdentity: Codable {
     var localPetname: String?   // User's name for this peer
     var claimedNickname: String // What peer calls themselves
     var trustLevel: TrustLevel
-    var isFavorite: Bool
     var isBlocked: Bool
     var notes: String?
 }
