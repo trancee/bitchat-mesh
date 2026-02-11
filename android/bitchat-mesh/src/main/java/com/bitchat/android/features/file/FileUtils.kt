@@ -10,6 +10,7 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.*
+import com.permissionless.bitchat.mesh.BuildConfig
 
 object FileUtils {
 
@@ -29,7 +30,7 @@ object FileUtils {
                 Log.e(TAG, "❌ Failed to open input stream for URI: $uri")
                 return null
             }
-            Log.d(TAG, "📂 Opened input stream successfully")
+            if (BuildConfig.DEBUG) Log.d(TAG, "📂 Opened input stream successfully")
 
             // Determine file extension
             val extension = originalName?.substringAfterLast(".") ?: "bin"
@@ -48,7 +49,7 @@ object FileUtils {
                 }
             }
 
-            Log.d(TAG, "Saved file to: ${file.absolutePath}")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Saved file to: ${file.absolutePath}")
             file.absolutePath
 
         } catch (e: Exception) {
@@ -61,14 +62,14 @@ object FileUtils {
      * Copy file to app's outgoing directory for sending
      */
     fun copyFileForSending(context: Context, uri: Uri, originalName: String? = null): String? {
-        Log.d(TAG, "🔄 Starting file copy from URI: $uri")
+        if (BuildConfig.DEBUG) Log.d(TAG, "🔄 Starting file copy from URI: $uri")
         return try {
             val inputStream = context.contentResolver.openInputStream(uri)
             if (inputStream == null) {
                 Log.e(TAG, "❌ Failed to open input stream for URI: $uri")
                 return null
             }
-            Log.d(TAG, "📂 Opened input stream successfully")
+            if (BuildConfig.DEBUG) Log.d(TAG, "📂 Opened input stream successfully")
 
             // Determine original filename and extension if available
             val displayName = originalName ?: run {
@@ -113,8 +114,8 @@ object FileUtils {
                 }
             }
 
-            Log.d(TAG, "✅ Successfully copied file for sending: ${target.absolutePath}")
-            Log.d(TAG, "📊 Final file size: ${target.length()} bytes")
+            if (BuildConfig.DEBUG) Log.d(TAG, "✅ Successfully copied file for sending: ${target.absolutePath}")
+            if (BuildConfig.DEBUG) Log.d(TAG, "📊 Final file size: ${target.length()} bytes")
             target.absolutePath
 
         } catch (e: Exception) {
@@ -195,7 +196,7 @@ object FileUtils {
         context: Context,
         file: com.bitchat.android.model.BitchatFilePacket
     ): String {
-        val lowerMime = (file.mimeType ?: "application/octet-stream").lowercase()
+        val lowerMime = file.mimeType.lowercase()
         val isImage = lowerMime.startsWith("image/")
         // FIX: Use cacheDir instead of filesDir to prevent storage exhaustion attacks (Issue #592)
         // Files in cacheDir are eligible for automatic system cleanup when space is low
@@ -213,7 +214,7 @@ object FileUtils {
         }
 
         // Prefer transmitted original name; ensure uniqueness to avoid overwrites
-        val baseName = (file.fileName?.takeIf { it.isNotBlank() }
+        val baseName = (file.fileName.takeIf { it.isNotBlank() }
             ?: (if (isImage) "img" else "file"))
             .replace(Regex("[^A-Za-z0-9._-]"), "_")
         val ext = extFromMime(lowerMime)
@@ -294,7 +295,7 @@ object FileUtils {
                 val dir = File(filesDir, subDir)
                 if (dir.exists()) {
                     dir.deleteRecursively()
-                    Log.d(TAG, "Deleted media directory from filesDir: $subDir")
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Deleted media directory from filesDir: $subDir")
                 }
             }
             
@@ -311,13 +312,13 @@ object FileUtils {
                 val dir = File(cacheDir, subDir)
                 if (dir.exists()) {
                     dir.deleteRecursively()
-                    Log.d(TAG, "Deleted media directory from cacheDir: $subDir")
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Deleted media directory from cacheDir: $subDir")
                 }
             }
             
             // Also clear entire cache dir as a catch-all
             context.cacheDir.deleteRecursively()
-            Log.d(TAG, "Cleared entire cache directory")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Cleared entire cache directory")
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to clear media files", e)

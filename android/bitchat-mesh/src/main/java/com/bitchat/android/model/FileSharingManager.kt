@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Log
 import com.bitchat.android.features.file.FileUtils
 import java.io.File
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Business logic for file sharing operations
@@ -46,7 +47,7 @@ object FileSharingManager {
                 content = content
             )
 
-            Log.d(TAG, "Created file packet: name=$fileName, size=${FileUtils.formatFileSize(fileSize)}, mime=$mimeType")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Created file packet: name=$fileName, size=${FileUtils.formatFileSize(fileSize)}, mime=$mimeType")
             packet
 
         } catch (e: Exception) {
@@ -83,9 +84,9 @@ object FileSharingManager {
 
     fun processReceivedFile(packet: BitchatFilePacket): ReceivedFileInfo {
         return ReceivedFileInfo(
-            fileName = packet.fileName ?: "unknown_file",
-            fileSize = packet.fileSize ?: packet.content.size.toLong(),
-            mimeType = packet.mimeType ?: "application/octet-stream",
+            fileName = packet.fileName,
+            fileSize = packet.fileSize,
+            mimeType = packet.mimeType,
             content = packet.content
         )
     }

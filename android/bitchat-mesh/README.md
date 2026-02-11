@@ -124,6 +124,11 @@ mesh.sendBroadcastMessage("hello nearby")
 - The library does not ship UI, notification handling, Tor, or Nostr.
 - The host app should manage permissions and background execution policy.
 
+## Upstream Sync
+- Date: 2026-02-11
+- Upstream: bitchat-android @ 6d44919 (version 1.7.1)
+- Changes: synced core mesh sources; removed UI/Compose, Tor, Nostr, and favorites hooks from the library build.
+
 ## Sample App
 A minimal sample app is provided in the `:mesh-sample` module.
 

@@ -1,6 +1,5 @@
 package com.bitchat.android.util
 
-import com.permissionless.bitchat.mesh.BuildConfig
 import java.util.UUID
 
 /**
@@ -27,7 +26,7 @@ object AppConstants {
         const val RSSI_UPDATE_INTERVAL_MS: Long = 5_000L
 
         object Gatt {
-            val SERVICE_UUID: UUID = UUID.fromString(BuildConfig.MESH_SERVICE_UUID)
+            val SERVICE_UUID: UUID = UUID.fromString("F47B5E2D-4A9E-4C5A-9B3F-8E1D2C3A4B5C")
             val CHARACTERISTIC_UUID: UUID = UUID.fromString("A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D")
             val DESCRIPTOR_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         }
@@ -87,41 +86,6 @@ object AppConstants {
         const val MAX_CONNECTIONS_NORMAL: Int = 8
         const val MAX_CONNECTIONS_POWER_SAVE: Int = 8
         const val MAX_CONNECTIONS_ULTRA_LOW: Int = 4
-    }
-
-    object Nostr {
-        // Relay backoff
-        const val INITIAL_BACKOFF_INTERVAL_MS: Long = 1_000L
-        const val MAX_BACKOFF_INTERVAL_MS: Long = 300_000L
-        const val BACKOFF_MULTIPLIER: Double = 2.0
-        const val MAX_RECONNECT_ATTEMPTS: Int = 10
-
-        // Transport
-        const val READ_ACK_INTERVAL_MS: Long = 350L
-
-        // Deduplicator
-        const val DEFAULT_DEDUP_CAPACITY: Int = 10_000
-
-        // Relay subscription validation
-        const val SUBSCRIPTION_VALIDATION_INTERVAL_MS: Long = 30_000L
-    }
-
-    object Tor {
-        const val DEFAULT_SOCKS_PORT: Int = 9060
-        const val RESTART_DELAY_MS: Long = 2_000L
-        const val INACTIVITY_TIMEOUT_MS: Long = 5_000L
-        const val MAX_RETRY_ATTEMPTS: Int = 5
-        const val STOP_TIMEOUT_MS: Long = 7_000L
-    }
-
-    object UI {
-        const val MAX_NICKNAME_LENGTH: Int = 15
-        const val BASE_FONT_SIZE_SP: Int = 15
-        const val MESSAGE_DEDUP_TIMEOUT_MS: Long = 30_000L
-        const val SYSTEM_EVENT_DEDUP_TIMEOUT_MS: Long = 5_000L
-        const val ACTIVE_PEERS_NOTIFICATION_INTERVAL_MS: Long = 300_000L
-        const val ACTION_FORCE_FINISH: String = "com.bitchat.android.ACTION_FORCE_FINISH"
-        const val PERMISSION_FORCE_FINISH: String = "com.bitchat.android.permission.FORCE_FINISH"
     }
 
     object Media {

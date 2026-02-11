@@ -3,18 +3,20 @@ package com.bitchat.android.services
 import android.content.Context
 
 /**
- * Simple nickname provider for library usage.
- * Consumers can set an override nickname via setNickname().
+ * Provides current user's nickname for announcements and leave messages.
+ * If no nickname saved, falls back to the provided peerID.
  */
 object NicknameProvider {
     @Volatile
-    private var overrideNickname: String? = null
+    private var cachedNickname: String? = null
 
     fun setNickname(nickname: String?) {
-        overrideNickname = nickname?.trim()?.ifEmpty { null }
+        cachedNickname = nickname?.trim()?.ifEmpty { null }
     }
 
     fun getNickname(context: Context, myPeerID: String): String {
-        return overrideNickname ?: myPeerID
+        val nick = cachedNickname
+        return if (nick.isNullOrBlank()) myPeerID else nick
     }
 }
+

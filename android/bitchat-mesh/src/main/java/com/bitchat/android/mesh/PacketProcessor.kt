@@ -7,6 +7,7 @@ import com.bitchat.android.model.RoutedPacket
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.actor
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Processes incoming packets and routes them to appropriate handlers
@@ -16,8 +17,6 @@ import kotlinx.coroutines.channels.actor
  * from the same peer simultaneously, causing session management conflicts.
  */
 class PacketProcessor(private val myPeerID: String) {
-    private val debugManager by lazy { try { com.bitchat.android.ui.debug.DebugSettingsManager.getInstance() } catch (e: Exception) { null } }
-    
     companion object {
         private const val TAG = "PacketProcessor"
     }
@@ -46,15 +45,15 @@ class PacketProcessor(private val myPeerID: String) {
     private fun getOrCreateActorForPeer(peerID: String) = processorScope.actor<RoutedPacket>(
         capacity = Channel.UNLIMITED
     ) {
-        Log.d(TAG, "🎭 Created packet actor for peer: ${formatPeerForLog(peerID)}")
+        if (BuildConfig.DEBUG) Log.d(TAG, "🎭 Created packet actor for peer: ${formatPeerForLog(peerID)}")
         try {
             for (packet in channel) {
-                Log.d(TAG, "📦 Processing packet type ${packet.packet.type} from ${formatPeerForLog(peerID)} (serialized)")
+                if (BuildConfig.DEBUG) Log.d(TAG, "📦 Processing packet type ${packet.packet.type} from ${formatPeerForLog(peerID)} (serialized)")
                 handleReceivedPacket(packet)
-                Log.d(TAG, "Completed packet type ${packet.packet.type} from ${formatPeerForLog(peerID)}")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Completed packet type ${packet.packet.type} from ${formatPeerForLog(peerID)}")
             }
         } finally {
-            Log.d(TAG, "🎭 Packet actor for ${formatPeerForLog(peerID)} terminated")
+            if (BuildConfig.DEBUG) Log.d(TAG, "🎭 Packet actor for ${formatPeerForLog(peerID)} terminated")
         }
     }
     
@@ -71,7 +70,7 @@ class PacketProcessor(private val myPeerID: String) {
      * SURGICAL FIX: Route to per-peer actor for serialized processing
      */
     fun processPacket(routed: RoutedPacket) {
-        Log.d(TAG, "processPacket ${routed.packet.type}")
+        if (BuildConfig.DEBUG) Log.d(TAG, "processPacket ${routed.packet.type}")
         val peerID = routed.peerID
 
         if (peerID == null) {
@@ -125,21 +124,15 @@ class PacketProcessor(private val myPeerID: String) {
 
         // Basic validation and security checks
         if (!delegate?.validatePacketSecurity(packet, peerID)!!) {
-            Log.d(TAG, "Packet failed security validation from ${formatPeerForLog(peerID)}")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Packet failed security validation from ${formatPeerForLog(peerID)}")
             return
         }
 
         var validPacket = true
         val messageType = MessageType.fromValue(packet.type)
-        Log.d(TAG, "Processing packet type ${messageType} from ${formatPeerForLog(peerID)}")
-        // Verbose logging to debug manager (and chat via ChatViewModel observer)
-        try {
-            val mt = messageType?.name ?: packet.type.toString()
-            val routeDevice = routed.relayAddress
-            val nick = delegate?.getPeerNickname(peerID)
-            debugManager?.logIncomingPacket(peerID, nick, mt, routeDevice)
-        } catch (_: Exception) { }
-        
+        if (BuildConfig.DEBUG) Log.d(TAG, "Processing packet type ${messageType} from ${formatPeerForLog(peerID)}")
+        val mt = messageType?.name ?: packet.type.toString()
+        if (BuildConfig.DEBUG) Log.d(TAG, "Incoming packet type=$mt from=${formatPeerForLog(peerID)} route=${routed.relayAddress ?: "direct"}")
         
         // Handle public packet types (no address check needed)
         when (messageType) {
@@ -162,7 +155,7 @@ class PacketProcessor(private val myPeerID: String) {
                         }
                     }
                 } else {
-                    Log.d(TAG, "Private packet type ${messageType} not addressed to us (from: ${formatPeerForLog(peerID)} to ${packet.recipientID?.let { it.joinToString("") { b -> "%02x".format(b) } }}), skipping")
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Private packet type ${messageType} not addressed to us (from: ${formatPeerForLog(peerID)} to ${packet.recipientID?.let { it.joinToString("") { b -> "%02x".format(b) } }}), skipping")
                 }
             }
         }
@@ -181,7 +174,7 @@ class PacketProcessor(private val myPeerID: String) {
      */
     private suspend fun handleNoiseHandshake(routed: RoutedPacket) {
         val peerID = routed.peerID ?: "unknown"
-        Log.d(TAG, "Processing Noise handshake from ${formatPeerForLog(peerID)}")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Processing Noise handshake from ${formatPeerForLog(peerID)}")
         delegate?.handleNoiseHandshake(routed)
     }
     
@@ -190,7 +183,7 @@ class PacketProcessor(private val myPeerID: String) {
      */
     private suspend fun handleNoiseEncrypted(routed: RoutedPacket) {
         val peerID = routed.peerID ?: "unknown"
-        Log.d(TAG, "Processing Noise encrypted message from ${formatPeerForLog(peerID)}")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Processing Noise encrypted message from ${formatPeerForLog(peerID)}")
         delegate?.handleNoiseEncrypted(routed)
     }
     
@@ -199,7 +192,7 @@ class PacketProcessor(private val myPeerID: String) {
      */
     private suspend fun handleAnnounce(routed: RoutedPacket) {
         val peerID = routed.peerID ?: "unknown"
-        Log.d(TAG, "Processing announce from ${formatPeerForLog(peerID)}")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Processing announce from ${formatPeerForLog(peerID)}")
         delegate?.handleAnnounce(routed)
     }
     
@@ -208,7 +201,7 @@ class PacketProcessor(private val myPeerID: String) {
      */
     private suspend fun handleMessage(routed: RoutedPacket) {
         val peerID = routed.peerID ?: "unknown"
-        Log.d(TAG, "Processing message from ${formatPeerForLog(peerID)}")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Processing message from ${formatPeerForLog(peerID)}")
         delegate?.handleMessage(routed)
     }
     
@@ -217,7 +210,7 @@ class PacketProcessor(private val myPeerID: String) {
      */
     private suspend fun handleLeave(routed: RoutedPacket) {
         val peerID = routed.peerID ?: "unknown"
-        Log.d(TAG, "Processing leave from ${formatPeerForLog(peerID)}")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Processing leave from ${formatPeerForLog(peerID)}")
         delegate?.handleLeave(routed)
     }
     
@@ -226,11 +219,11 @@ class PacketProcessor(private val myPeerID: String) {
      */
     private suspend fun handleFragment(routed: RoutedPacket) {
         val peerID = routed.peerID ?: "unknown"
-        Log.d(TAG, "Processing fragment from ${formatPeerForLog(peerID)}")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Processing fragment from ${formatPeerForLog(peerID)}")
         
         val reassembledPacket = delegate?.handleFragment(routed.packet)
         if (reassembledPacket != null) {
-            Log.d(TAG, "Fragment reassembled, processing complete message")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Fragment reassembled, processing complete message")
             handleReceivedPacket(RoutedPacket(reassembledPacket, routed.peerID, routed.relayAddress))
         }
         
@@ -242,7 +235,7 @@ class PacketProcessor(private val myPeerID: String) {
      */
     private suspend fun handleRequestSync(routed: RoutedPacket) {
         val peerID = routed.peerID ?: "unknown"
-        Log.d(TAG, "Processing REQUEST_SYNC from ${formatPeerForLog(peerID)}")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Processing REQUEST_SYNC from ${formatPeerForLog(peerID)}")
         delegate?.handleRequestSync(routed)
     }
     
@@ -278,7 +271,7 @@ class PacketProcessor(private val myPeerID: String) {
      * Shutdown the processor and all peer actors
      */
     fun shutdown() {
-        Log.d(TAG, "Shutting down PacketProcessor and ${actors.size} peer actors")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Shutting down PacketProcessor and ${actors.size} peer actors")
         
         // Close all peer actors gracefully
         actors.values.forEach { actor ->
@@ -292,7 +285,7 @@ class PacketProcessor(private val myPeerID: String) {
         // Cancel the main scope
         processorScope.cancel()
         
-        Log.d(TAG, "PacketProcessor shutdown complete")
+        if (BuildConfig.DEBUG) Log.d(TAG, "PacketProcessor shutdown complete")
     }
 }
 

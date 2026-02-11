@@ -9,6 +9,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Tracks all Bluetooth connections and handles cleanup
@@ -88,7 +89,7 @@ class BluetoothConnectionTracker(
      * Add a device connection
      */
     fun addDeviceConnection(deviceAddress: String, deviceConn: DeviceConnection) {
-        Log.d(TAG, "Tracker: Adding device connection for $deviceAddress (isClient: ${deviceConn.isClient}")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Tracker: Adding device connection for $deviceAddress (isClient: ${deviceConn.isClient}")
         connectedDevices[deviceAddress] = deviceConn
         pendingConnections.remove(deviceAddress)
     }
@@ -189,23 +190,23 @@ class BluetoothConnectionTracker(
      * Add a pending connection attempt
      */
     fun addPendingConnection(deviceAddress: String): Boolean {
-        Log.d(TAG, "Tracker: Adding pending connection for $deviceAddress")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Tracker: Adding pending connection for $deviceAddress")
         synchronized(pendingConnections) {
             // Double-check inside synchronized block
             val currentAttempt = pendingConnections[deviceAddress]
             if (currentAttempt != null && !currentAttempt.isExpired() && !currentAttempt.shouldRetry()) {
-                Log.d(TAG, "Tracker: Connection attempt already in progress for $deviceAddress")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Tracker: Connection attempt already in progress for $deviceAddress")
                 return false
             }
             if (currentAttempt != null) {
-                Log.d(TAG, "Tracker: current attempt: $currentAttempt")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Tracker: current attempt: $currentAttempt")
             }
             
             // Update connection attempt atomically
             // If the previous attempt window expired, reset backoff to 1; otherwise increment
             val attempts = if (currentAttempt?.isExpired() == true) 1 else (currentAttempt?.attempts ?: 0) + 1
             pendingConnections[deviceAddress] = ConnectionAttempt(attempts)
-            Log.d(TAG, "Tracker: Added pending connection for $deviceAddress (attempts: $attempts)")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Tracker: Added pending connection for $deviceAddress (attempts: $attempts)")
             return true
         }
     }
@@ -218,7 +219,7 @@ class BluetoothConnectionTracker(
             try { it.disconnect() } catch (_: Exception) { }
         }
         cleanupDeviceConnection(deviceAddress)
-        Log.d(TAG, "Requested disconnect for $deviceAddress")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Requested disconnect for $deviceAddress")
     }
 
     /**
@@ -301,7 +302,7 @@ class BluetoothConnectionTracker(
             subscribedDevices.removeAll { it.address == deviceAddress }
             addressPeerMap.remove(deviceAddress)
         }
-        Log.d(TAG, "Cleaned up device connection for $deviceAddress")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Cleaned up device connection for $deviceAddress")
     }
     
     /**
@@ -353,11 +354,11 @@ class BluetoothConnectionTracker(
                     
                     // Log cleanup if any
                     if (expiredConnections.isNotEmpty()) {
-                        Log.d(TAG, "Cleaned up ${expiredConnections.size} expired connection attempts")
+                        if (BuildConfig.DEBUG) Log.d(TAG, "Cleaned up ${expiredConnections.size} expired connection attempts")
                     }
                     
                     // Log current state
-                    Log.d(TAG, "Periodic cleanup: ${connectedDevices.size} connections, ${pendingConnections.size} pending")
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Periodic cleanup: ${connectedDevices.size} connections, ${pendingConnections.size} pending")
                     
                 } catch (e: Exception) {
                     Log.w(TAG, "Error in periodic cleanup: ${e.message}")

@@ -16,6 +16,7 @@ import org.bouncycastle.crypto.signers.Ed25519Signer
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
 import androidx.core.content.edit
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Encryption service that now uses NoiseEncryptionService internally
@@ -78,17 +79,17 @@ open class EncryptionService(private val context: Context) {
         ed25519PrivateKey = keyPair.private as Ed25519PrivateKeyParameters
         ed25519PublicKey = keyPair.public as Ed25519PublicKeyParameters
         
-        Log.d(TAG, "✅ Ed25519 signing keys initialized")
+        if (BuildConfig.DEBUG) Log.d(TAG, "✅ Ed25519 signing keys initialized")
         
         // Set up NoiseEncryptionService callbacks
         noiseService.onPeerAuthenticated = { peerID, fingerprint ->
-            Log.d(TAG, "✅ Noise session established with $peerID, fingerprint: ${fingerprint.take(16)}...")
+            if (BuildConfig.DEBUG) Log.d(TAG, "✅ Noise session established with $peerID, fingerprint: ${fingerprint.take(16)}...")
             establishedSessions[peerID] = fingerprint
             onSessionEstablished?.invoke(peerID)
         }
         
         noiseService.onHandshakeRequired = { peerID ->
-            Log.d(TAG, "🤝 Handshake required for $peerID")
+            if (BuildConfig.DEBUG) Log.d(TAG, "🤝 Handshake required for $peerID")
             onHandshakeRequired?.invoke(peerID)
         }
     }
@@ -126,7 +127,7 @@ open class EncryptionService(private val context: Context) {
             signer.init(true, ed25519PrivateKey)
             signer.update(data, 0, data.size)
             val signature = signer.generateSignature()
-            Log.d(TAG, "✅ Generated Ed25519 signature (${signature.size} bytes)")
+            if (BuildConfig.DEBUG) Log.d(TAG, "✅ Generated Ed25519 signature (${signature.size} bytes)")
             signature
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to sign data with Ed25519: ${e.message}")
@@ -140,11 +141,11 @@ open class EncryptionService(private val context: Context) {
      */
     @Throws(Exception::class)
     fun addPeerPublicKey(peerID: String, publicKeyData: ByteArray) {
-        Log.d(TAG, "Legacy addPeerPublicKey called for $peerID with ${publicKeyData.size} bytes")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Legacy addPeerPublicKey called for $peerID with ${publicKeyData.size} bytes")
         
         // If this is from old key exchange format, initiate new Noise handshake
         if (!hasEstablishedSession(peerID)) {
-            Log.d(TAG, "No Noise session with $peerID, initiating handshake")
+            if (BuildConfig.DEBUG) Log.d(TAG, "No Noise session with $peerID, initiating handshake")
             initiateHandshake(peerID)
         }
     }
@@ -167,13 +168,13 @@ open class EncryptionService(private val context: Context) {
         // Clear Ed25519 signing key from preferences
         try {
             prefs.edit { remove(ED25519_PRIVATE_KEY_PREF) }
-            Log.d(TAG, "🗑️ Cleared Ed25519 signing keys from preferences")
+            if (BuildConfig.DEBUG) Log.d(TAG, "🗑️ Cleared Ed25519 signing keys from preferences")
 
             // Generate new keys immediately
             val keyPair = loadOrCreateEd25519KeyPair()
             ed25519PrivateKey = keyPair.private as Ed25519PrivateKeyParameters
             ed25519PublicKey = keyPair.public as Ed25519PublicKeyParameters
-            Log.d(TAG, "✅ Rotated Ed25519 signing keys in memory")
+            if (BuildConfig.DEBUG) Log.d(TAG, "✅ Rotated Ed25519 signing keys in memory")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to clear Ed25519 keys: ${e.message}")
         }
@@ -266,7 +267,7 @@ open class EncryptionService(private val context: Context) {
      * Initiate a Noise handshake with a peer
      */
     fun initiateHandshake(peerID: String): ByteArray? {
-        Log.d(TAG, "🤝 Initiating Noise handshake with $peerID")
+        if (BuildConfig.DEBUG) Log.d(TAG, "🤝 Initiating Noise handshake with $peerID")
         return noiseService.initiateHandshake(peerID)
     }
     
@@ -274,7 +275,7 @@ open class EncryptionService(private val context: Context) {
      * Process an incoming handshake message
      */
     fun processHandshakeMessage(data: ByteArray, peerID: String): ByteArray? {
-        Log.d(TAG, "🤝 Processing handshake message from $peerID")
+        if (BuildConfig.DEBUG) Log.d(TAG, "🤝 Processing handshake message from $peerID")
         return noiseService.processHandshakeMessage(data, peerID)
     }
     
@@ -285,7 +286,7 @@ open class EncryptionService(private val context: Context) {
         establishedSessions.remove(peerID)
         noiseService.removePeer(peerID)
         onSessionLost?.invoke(peerID)
-        Log.d(TAG, "🗑️ Removed session for $peerID")
+        if (BuildConfig.DEBUG) Log.d(TAG, "🗑️ Removed session for $peerID")
     }
     
     /**
@@ -347,7 +348,7 @@ open class EncryptionService(private val context: Context) {
      * Initiate rekey for a session
      */
     fun initiateRekey(peerID: String): ByteArray? {
-        Log.d(TAG, "🔄 Initiating rekey for $peerID")
+        if (BuildConfig.DEBUG) Log.d(TAG, "🔄 Initiating rekey for $peerID")
         establishedSessions.remove(peerID) // Will be re-added when new session is established
         return noiseService.initiateRekey(peerID)
     }
@@ -384,7 +385,7 @@ open class EncryptionService(private val context: Context) {
     fun shutdown() {
         establishedSessions.clear()
         noiseService.shutdown()
-        Log.d(TAG, "🔌 EncryptionService shut down")
+        if (BuildConfig.DEBUG) Log.d(TAG, "🔌 EncryptionService shut down")
     }
     
     // MARK: - Ed25519 Signature Verification
@@ -399,7 +400,7 @@ open class EncryptionService(private val context: Context) {
             verifier.init(false, publicKey)
             verifier.update(data, 0, data.size)
             val isValid = verifier.verifySignature(signature)
-            Log.d(TAG, "✅ Ed25519 signature verification: $isValid")
+            if (BuildConfig.DEBUG) Log.d(TAG, "✅ Ed25519 signature verification: $isValid")
             isValid
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to verify Ed25519 signature: ${e.message}")
@@ -423,7 +424,7 @@ open class EncryptionService(private val context: Context) {
                 val privateKeyBytes = Base64.decode(storedKey, Base64.DEFAULT)
                 val privateKey = Ed25519PrivateKeyParameters(privateKeyBytes, 0)
                 val publicKey = privateKey.generatePublicKey()
-                Log.d(TAG, "✅ Loaded existing Ed25519 signing key pair")
+                if (BuildConfig.DEBUG) Log.d(TAG, "✅ Loaded existing Ed25519 signing key pair")
                 return AsymmetricCipherKeyPair(publicKey, privateKey)
             }
         } catch (e: Exception) {
@@ -446,7 +447,7 @@ open class EncryptionService(private val context: Context) {
             val encodedKey = Base64.encodeToString(privateKeyBytes, Base64.DEFAULT)
 
             prefs.edit { putString(ED25519_PRIVATE_KEY_PREF, encodedKey) }
-            Log.d(TAG, "✅ Created and stored new Ed25519 signing key pair")
+            if (BuildConfig.DEBUG) Log.d(TAG, "✅ Created and stored new Ed25519 signing key pair")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to store Ed25519 private key: ${e.message}")
         }
@@ -468,7 +469,7 @@ open class EncryptionService(private val context: Context) {
                 oldPrefs.edit {
                     remove(ED25519_PRIVATE_KEY_PREF)
                 }
-                Log.d(TAG, "🔁 Migrated Ed25519 key to EncryptedSharedPreferences")
+                if (BuildConfig.DEBUG) Log.d(TAG, "🔁 Migrated Ed25519 key to EncryptedSharedPreferences")
             }
         } catch (e: Exception) {
             Log.w(TAG, "⚠️ Failed to migrate Ed25519 key; generating new identity: ${e.message}")

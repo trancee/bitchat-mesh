@@ -3,6 +3,7 @@ package com.bitchat.android.mesh
 import android.util.Log
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Centralized peer fingerprint management singleton
@@ -64,7 +65,7 @@ class PeerFingerprintManager private constructor() {
         peerIDToFingerprint[peerID] = fingerprint
         fingerprintToPeerID[fingerprint] = peerID
         
-        Log.d(TAG, "Stored fingerprint for peer $peerID: ${fingerprint.take(16)}...")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Stored fingerprint for peer $peerID: ${fingerprint.take(16)}...")
         return fingerprint
     }
     
@@ -91,7 +92,7 @@ class PeerFingerprintManager private constructor() {
         oldPeerID?.takeIf { it.isNotBlank() }?.let { oldID ->
             val removedFingerprint = peerIDToFingerprint.remove(oldID)
             if (removedFingerprint != null && removedFingerprint == fingerprint) {
-                Log.d(TAG, "Removed old mapping: $oldID -> ${removedFingerprint.take(16)}...")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Removed old mapping: $oldID -> ${removedFingerprint.take(16)}...")
             }
         }
         
@@ -99,7 +100,7 @@ class PeerFingerprintManager private constructor() {
         peerIDToFingerprint[newPeerID] = fingerprint
         fingerprintToPeerID[fingerprint] = newPeerID
         
-        Log.d(TAG, "Updated peer ID mapping: $newPeerID (was: $oldPeerID), fingerprint: ${fingerprint.take(16)}...")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Updated peer ID mapping: $newPeerID (was: $oldPeerID), fingerprint: ${fingerprint.take(16)}...")
     }
     
     // MARK: - Fingerprint Retrieval
@@ -167,7 +168,7 @@ class PeerFingerprintManager private constructor() {
         val fingerprint = peerIDToFingerprint.remove(peerID)
         if (fingerprint != null) {
             fingerprintToPeerID.remove(fingerprint)
-            Log.d(TAG, "Removed peer mappings for $peerID: ${fingerprint.take(16)}...")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Removed peer mappings for $peerID: ${fingerprint.take(16)}...")
         }
     }
     
@@ -182,7 +183,7 @@ class PeerFingerprintManager private constructor() {
         val peerID = fingerprintToPeerID.remove(fingerprint)
         if (peerID != null) {
             peerIDToFingerprint.remove(peerID)
-            Log.d(TAG, "Removed fingerprint mappings for ${fingerprint.take(16)}...: $peerID")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Removed fingerprint mappings for ${fingerprint.take(16)}...: $peerID")
         }
     }
     

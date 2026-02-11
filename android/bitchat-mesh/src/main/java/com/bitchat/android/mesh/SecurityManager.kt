@@ -9,6 +9,7 @@ import com.bitchat.android.util.toHexString
 import kotlinx.coroutines.*
 import java.util.*
 import kotlin.collections.mutableSetOf
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Manages security aspects of the mesh network including duplicate detection,
@@ -46,7 +47,7 @@ class SecurityManager(private val encryptionService: EncryptionService, private 
     fun validatePacket(packet: BitchatPacket, peerID: String): Boolean {
         // Skip validation for our own packets
         if (peerID == myPeerID) {
-            Log.d(TAG, "Skipping validation for our own packet")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Skipping validation for our own packet")
             return false
         }
         
@@ -65,10 +66,10 @@ class SecurityManager(private val encryptionService: EncryptionService, private 
                     packet.ttl >= com.bitchat.android.util.AppConstants.MESSAGE_TTL_HOPS
 
             if (!isFreshAnnounce) {
-                Log.d(TAG, "Dropping duplicate packet: $messageID")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Dropping duplicate packet: $messageID")
                 return false
             }
-            Log.d(TAG, "Allowing duplicate ANNOUNCE from direct neighbor: $messageID")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Allowing duplicate ANNOUNCE from direct neighbor: $messageID")
         }
 
         // Add to processed messages
@@ -81,7 +82,7 @@ class SecurityManager(private val encryptionService: EncryptionService, private 
             return false
         }
         
-        Log.d(TAG, "Packet validation passed for $peerID, messageID: $messageID")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Packet validation passed for $peerID, messageID: $messageID")
         return true
     }
     
@@ -95,7 +96,7 @@ class SecurityManager(private val encryptionService: EncryptionService, private 
 
         // Skip handshakes not addressed to us
         if (packet.recipientID?.toHexString() != myPeerID) {
-            Log.d(TAG, "Skipping handshake not addressed to us: $peerID")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Skipping handshake not addressed to us: $peerID")
             return false
         }
             
@@ -106,7 +107,7 @@ class SecurityManager(private val encryptionService: EncryptionService, private 
         // drop the existing session so we can re-establish cleanly.
         var forcedRehandshake = false
         if (encryptionService.hasEstablishedSession(peerID)) {
-            Log.d(TAG, "Received new Noise handshake from $peerID with an existing session. Dropping old session to re-handshake.")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Received new Noise handshake from $peerID with an existing session. Dropping old session to re-handshake.")
             try {
                 encryptionService.removePeer(peerID)
                 forcedRehandshake = true
@@ -124,10 +125,10 @@ class SecurityManager(private val encryptionService: EncryptionService, private 
         val exchangeKey = "$peerID-${packet.payload.sliceArray(0 until minOf(16, packet.payload.size)).contentHashCode()}"
         
         if (!forcedRehandshake && processedKeyExchanges.contains(exchangeKey)) {
-            Log.d(TAG, "Already processed handshake: $exchangeKey")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Already processed handshake: $exchangeKey")
             return false
         }
-        Log.d(TAG, "Processing Noise handshake from $peerID (${packet.payload.size} bytes)")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Processing Noise handshake from $peerID (${packet.payload.size} bytes)")
         processedKeyExchanges.add(exchangeKey)
         
         try {
@@ -135,13 +136,13 @@ class SecurityManager(private val encryptionService: EncryptionService, private 
             val response = encryptionService.processHandshakeMessage(packet.payload, peerID)
             
             if (response != null) {
-                Log.d(TAG, "Successfully processed Noise handshake from $peerID, sending response")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Successfully processed Noise handshake from $peerID, sending response")
                 // Send handshake response through delegate
                 delegate?.sendHandshakeResponse(peerID, response)
             }
             // Check if session is now established (handshake complete)
             if (encryptionService.hasEstablishedSession(peerID)) {
-                Log.d(TAG, "✅ Noise handshake completed with $peerID")
+                if (BuildConfig.DEBUG) Log.d(TAG, "✅ Noise handshake completed with $peerID")
                 delegate?.onKeyExchangeCompleted(peerID, packet.payload)
             }
             return true
@@ -381,7 +382,7 @@ class SecurityManager(private val encryptionService: EncryptionService, private 
         }
         
         if (removedCount > 0) {
-            Log.d(TAG, "Cleaned up $removedCount old processed messages")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Cleaned up $removedCount old processed messages")
         }
     }
     

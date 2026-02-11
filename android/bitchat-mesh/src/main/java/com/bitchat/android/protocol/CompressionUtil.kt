@@ -4,6 +4,7 @@ import android.util.Log
 import java.io.ByteArrayOutputStream
 import java.util.zip.Deflater
 import java.util.zip.Inflater
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Compression utilities - 100% iOS-compatible zlib implementation
@@ -92,7 +93,7 @@ object CompressionUtil {
                 null
             }
         } catch (e: Exception) {
-            Log.d("CompressionUtil", "Raw deflate decompression failed: ${e.message}, trying with zlib headers...")
+            if (BuildConfig.DEBUG) Log.d("CompressionUtil", "Raw deflate decompression failed: ${e.message}, trying with zlib headers...")
             
             // Fallback: try with zlib headers in case of mixed usage
             try {
@@ -127,11 +128,11 @@ object CompressionUtil {
             val testMessage = "This is a test message that should compress well. ".repeat(10)
             val originalData = testMessage.toByteArray()
             
-            Log.d("CompressionUtil", "Testing deflate compression with ${originalData.size} bytes")
+            if (BuildConfig.DEBUG) Log.d("CompressionUtil", "Testing deflate compression with ${originalData.size} bytes")
             
             // Test shouldCompress
             val shouldCompress = shouldCompress(originalData)
-            Log.d("CompressionUtil", "shouldCompress() returned: $shouldCompress")
+            if (BuildConfig.DEBUG) Log.d("CompressionUtil", "shouldCompress() returned: $shouldCompress")
             
             if (!shouldCompress) {
                 Log.e("CompressionUtil", "shouldCompress failed for test data")
@@ -145,7 +146,7 @@ object CompressionUtil {
                 return false
             }
             
-            Log.d("CompressionUtil", "Compressed ${originalData.size} bytes to ${compressed.size} bytes (${(compressed.size.toDouble() / originalData.size * 100).toInt()}%)")
+            if (BuildConfig.DEBUG) Log.d("CompressionUtil", "Compressed ${originalData.size} bytes to ${compressed.size} bytes (${(compressed.size.toDouble() / originalData.size * 100).toInt()}%)")
             
             // Test decompression
             val decompressed = decompress(compressed, originalData.size)
@@ -156,7 +157,7 @@ object CompressionUtil {
             
             // Verify data integrity
             val isIdentical = originalData.contentEquals(decompressed)
-            Log.d("CompressionUtil", "Data integrity check: $isIdentical")
+            if (BuildConfig.DEBUG) Log.d("CompressionUtil", "Data integrity check: $isIdentical")
             
             if (!isIdentical) {
                 Log.e("CompressionUtil", "Decompressed data doesn't match original")

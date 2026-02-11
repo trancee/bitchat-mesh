@@ -8,6 +8,7 @@ import com.bitchat.android.protocol.MessageType
 import com.bitchat.android.protocol.SpecialRecipients
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Gossip-based synchronization manager using on-demand GCS filters.
@@ -118,7 +119,7 @@ class GossipSyncManager(
             val now = System.currentTimeMillis()
             val age = now - packet.timestamp.toLong()
             if (age > com.bitchat.android.util.AppConstants.Mesh.STALE_PEER_TIMEOUT_MS) {
-                Log.d(TAG, "Ignoring stale ANNOUNCE (age=${age}ms > ${com.bitchat.android.util.AppConstants.Mesh.STALE_PEER_TIMEOUT_MS}ms)")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Ignoring stale ANNOUNCE (age=${age}ms > ${com.bitchat.android.util.AppConstants.Mesh.STALE_PEER_TIMEOUT_MS}ms)")
                 return
             }
             // senderID is fixed-size 8 bytes; map to hex string for key
@@ -159,7 +160,7 @@ class GossipSyncManager(
             payload = payload,
             ttl = com.bitchat.android.util.AppConstants.SYNC_TTL_HOPS // neighbor only
         )
-        Log.d(TAG, "Sending sync request to $peerID (${payload.size} bytes)")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Sending sync request to $peerID (${payload.size} bytes)")
         // Sign and send directly to peer
         val signed = delegate?.signPacketForBroadcast(packet) ?: packet
         delegate?.sendPacketToPeer(peerID, signed)
@@ -187,7 +188,7 @@ class GossipSyncManager(
                 // Send original packet unchanged to requester only (keep local TTL)
                 val toSend = pkt.copy(ttl = com.bitchat.android.util.AppConstants.SYNC_TTL_HOPS)
                 delegate?.sendPacketToPeer(fromPeerID, toSend)
-                Log.d(TAG, "Sent sync announce: Type ${toSend.type} from ${toSend.senderID.toHexString()} to $fromPeerID packet id ${idBytes.toHexString()}")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Sent sync announce: Type ${toSend.type} from ${toSend.senderID.toHexString()} to $fromPeerID packet id ${idBytes.toHexString()}")
             }
         }
 
@@ -198,7 +199,7 @@ class GossipSyncManager(
             if (!mightContain(idBytes)) {
                 val toSend = pkt.copy(ttl = com.bitchat.android.util.AppConstants.SYNC_TTL_HOPS)
                 delegate?.sendPacketToPeer(fromPeerID, toSend)
-                Log.d(TAG, "Sent sync message: Type ${toSend.type} to $fromPeerID packet id ${idBytes.toHexString()}")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Sent sync message: Type ${toSend.type} to $fromPeerID packet id ${idBytes.toHexString()}")
             }
         }
     }
@@ -291,14 +292,14 @@ class GossipSyncManager(
             removeAnnouncementForPeer(peerID)
         }
 
-        Log.d(TAG, "Pruned ${stalePeers.size} stale announcements and $totalPrunedMsgs messages")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Pruned ${stalePeers.size} stale announcements and $totalPrunedMsgs messages")
     }
 
     // Explicitly remove stored announcement for a given peer (hex ID)
     fun removeAnnouncementForPeer(peerID: String) {
         val key = peerID.lowercase()
         if (latestAnnouncementByPeer.remove(key) != null) {
-            Log.d(TAG, "Removed stored announcement for peer $peerID")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Removed stored announcement for peer $peerID")
         }
 
         // Collect IDs to remove first to avoid modifying collection while iterating
@@ -320,7 +321,7 @@ class GossipSyncManager(
         }
         
         if (idsToRemove.isNotEmpty()) {
-            Log.d(TAG, "Pruned ${idsToRemove.size} messages with senders without announcements")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Pruned ${idsToRemove.size} messages with senders without announcements")
         }
     }
 }

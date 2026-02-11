@@ -7,6 +7,7 @@ import com.bitchat.android.protocol.SpecialRecipients
 import kotlinx.coroutines.*
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Manages store-and-forward messaging for offline peers
@@ -57,13 +58,13 @@ class StoreForwardManager {
             packet.type == MessageType.NOISE_ENCRYPTED.value ||
             packet.type == MessageType.ANNOUNCE.value ||
             packet.type == MessageType.LEAVE.value) {
-            Log.d(TAG, "Skipping cache for message type: ${packet.type}")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Skipping cache for message type: ${packet.type}")
             return
         }
         
         // Don't cache broadcast messages
         if (packet.recipientID != null && packet.recipientID.contentEquals(SpecialRecipients.BROADCAST)) {
-            Log.d(TAG, "Skipping cache for broadcast message")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Skipping cache for broadcast message")
             return
         }
         
@@ -98,7 +99,7 @@ class StoreForwardManager {
                 favoriteMessageQueue[recipientPeerID]?.removeAt(0)
             }
             
-            Log.d(TAG, "Cached message for favorite peer $recipientPeerID (${favoriteMessageQueue[recipientPeerID]?.size} total)")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Cached message for favorite peer $recipientPeerID (${favoriteMessageQueue[recipientPeerID]?.size} total)")
             
         } else {
             // Store in regular cache
@@ -111,7 +112,7 @@ class StoreForwardManager {
                 messageCache.removeAt(0)
             }
             
-            Log.d(TAG, "Cached message for peer $recipientPeerID (${messageCache.size} total in cache)")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Cached message for peer $recipientPeerID (${messageCache.size} total in cache)")
         }
     }
     
@@ -120,7 +121,7 @@ class StoreForwardManager {
      */
     fun sendCachedMessages(peerID: String) {
         if (cachedMessagesSentToPeer.contains(peerID)) {
-            Log.d(TAG, "Already sent cached messages to $peerID")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Already sent cached messages to $peerID")
             return // Already sent cached messages to this peer
         }
         
@@ -136,7 +137,7 @@ class StoreForwardManager {
                 val undeliveredFavorites = favoriteMessages.filter { !deliveredMessages.contains(it.messageID) }
                 messagesToSend.addAll(undeliveredFavorites)
                 favoriteMessageQueue.remove(peerID)
-                Log.d(TAG, "Found ${undeliveredFavorites.size} cached favorite messages for $peerID")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Found ${undeliveredFavorites.size} cached favorite messages for $peerID")
             }
             
             // Filter regular cached messages for this recipient
@@ -149,7 +150,7 @@ class StoreForwardManager {
             messagesToSend.addAll(recipientMessages)
             
             if (recipientMessages.isNotEmpty()) {
-                Log.d(TAG, "Found ${recipientMessages.size} cached regular messages for $peerID")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Found ${recipientMessages.size} cached regular messages for $peerID")
             }
             
             // Sort by timestamp
@@ -173,7 +174,7 @@ class StoreForwardManager {
             messageCache.removeAll { messageIDsToRemove.contains(it.messageID) }
             
             if (messagesToSend.isNotEmpty()) {
-                Log.d(TAG, "Finished sending ${messagesToSend.size} cached messages to $peerID")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Finished sending ${messagesToSend.size} cached messages to $peerID")
             }
         }
     }
@@ -259,7 +260,7 @@ class StoreForwardManager {
         
         if (removed) {
             val removedCount = sizeBefore - messageCache.size
-            Log.d(TAG, "Cleaned up $removedCount old cached messages")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Cleaned up $removedCount old cached messages")
         }
     }
     
@@ -268,12 +269,12 @@ class StoreForwardManager {
      */
     private fun cleanupDeliveredMessages() {
         if (deliveredMessages.size > 1000) {
-            Log.d(TAG, "Clearing delivered messages set (${deliveredMessages.size} entries)")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Clearing delivered messages set (${deliveredMessages.size} entries)")
             deliveredMessages.clear()
         }
         
         if (cachedMessagesSentToPeer.size > 200) {
-            Log.d(TAG, "Clearing cached messages sent tracking (${cachedMessagesSentToPeer.size} entries)")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Clearing cached messages sent tracking (${cachedMessagesSentToPeer.size} entries)")
             cachedMessagesSentToPeer.clear()
         }
     }
@@ -286,7 +287,7 @@ class StoreForwardManager {
         favoriteMessageQueue.clear()
         deliveredMessages.clear()
         cachedMessagesSentToPeer.clear()
-        Log.d(TAG, "Cleared all cached message data")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Cleared all cached message data")
     }
     
     /**

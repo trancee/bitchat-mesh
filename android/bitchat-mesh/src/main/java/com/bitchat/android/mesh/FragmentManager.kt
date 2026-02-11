@@ -7,6 +7,7 @@ import com.bitchat.android.protocol.MessagePadding
 import com.bitchat.android.model.FragmentPayload
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Manages message fragmentation and reassembly - 100% iOS Compatible
@@ -49,13 +50,13 @@ class FragmentManager {
      */
     fun createFragments(packet: BitchatPacket): List<BitchatPacket> {
         try {
-            Log.d(TAG, "🔀 Creating fragments for packet type ${packet.type}, payload: ${packet.payload.size} bytes")
+            if (BuildConfig.DEBUG) Log.d(TAG, "🔀 Creating fragments for packet type ${packet.type}, payload: ${packet.payload.size} bytes")
         val encoded = packet.toBinaryData()
             if (encoded == null) {
                 Log.e(TAG, "❌ Failed to encode packet to binary data")
                 return emptyList()
             }
-            Log.d(TAG, "📦 Encoded to ${encoded.size} bytes")
+            if (BuildConfig.DEBUG) Log.d(TAG, "📦 Encoded to ${encoded.size} bytes")
         
         // Fragment the unpadded frame; each fragment will be encoded (and padded) independently - iOS fix
         val fullData = try {
@@ -64,7 +65,7 @@ class FragmentManager {
                 Log.e(TAG, "❌ Failed to unpad data: ${e.message}", e)
                 return emptyList()
             }
-            Log.d(TAG, "📏 Unpadded to ${fullData.size} bytes")
+            if (BuildConfig.DEBUG) Log.d(TAG, "📏 Unpadded to ${fullData.size} bytes")
         
         // iOS logic: if data.count > 512 && packet.type != MessageType.fragment.rawValue
         if (fullData.size <= FRAGMENT_SIZE_THRESHOLD) {
@@ -98,14 +99,14 @@ class FragmentManager {
             return emptyList()
         }
 
-        Log.d(TAG, "📏 Dynamic fragment size: $maxDataSize (MAX: $MAX_FRAGMENT_SIZE, Overhead: $packetOverhead)")
+        if (BuildConfig.DEBUG) Log.d(TAG, "📏 Dynamic fragment size: $maxDataSize (MAX: $MAX_FRAGMENT_SIZE, Overhead: $packetOverhead)")
 
         val fragmentChunks = stride(0, fullData.size, maxDataSize) { offset ->
             val endOffset = minOf(offset + maxDataSize, fullData.size)
             fullData.sliceArray(offset..<endOffset)
         }
         
-        Log.d(TAG, "Creating ${fragmentChunks.size} fragments for ${fullData.size} byte packet (iOS compatible)")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Creating ${fragmentChunks.size} fragments for ${fullData.size} byte packet (iOS compatible)")
         
         // iOS: for (index, fragment) in fragments.enumerated()
         for (index in fragmentChunks.indices) {
@@ -137,7 +138,7 @@ class FragmentManager {
             fragments.add(fragmentPacket)
         }
         
-        Log.d(TAG, "✅ Created ${fragments.size} fragments successfully")
+        if (BuildConfig.DEBUG) Log.d(TAG, "✅ Created ${fragments.size} fragments successfully")
             return fragments
         } catch (e: Exception) {
             Log.e(TAG, "❌ Fragment creation failed: ${e.message}", e)
@@ -171,7 +172,7 @@ class FragmentManager {
             // iOS: let fragmentID = packet.payload[0..<8].map { String(format: "%02x", $0) }.joined()
             val fragmentIDString = fragmentPayload.getFragmentIDString()
             
-            Log.d(TAG, "Received fragment ${fragmentPayload.index}/${fragmentPayload.total} for fragmentID: $fragmentIDString, originalType: ${fragmentPayload.originalType}")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Received fragment ${fragmentPayload.index}/${fragmentPayload.total} for fragmentID: $fragmentIDString, originalType: ${fragmentPayload.originalType}")
             
             // iOS: if incomingFragments[fragmentID] == nil
             if (!incomingFragments.containsKey(fragmentIDString)) {
@@ -189,7 +190,7 @@ class FragmentManager {
             // iOS: if let fragments = incomingFragments[fragmentID], fragments.count == total
             val fragmentMap = incomingFragments[fragmentIDString]
             if (fragmentMap != null && fragmentMap.size == fragmentPayload.total) {
-                Log.d(TAG, "All fragments received for $fragmentIDString, reassembling...")
+                if (BuildConfig.DEBUG) Log.d(TAG, "All fragments received for $fragmentIDString, reassembling...")
                 
                 // iOS reassembly logic: for i in 0..<total { if let fragment = fragments[i] { reassembled.append(fragment) } }
                 val reassembledData = mutableListOf<Byte>()
@@ -210,7 +211,7 @@ class FragmentManager {
                     // We already relayed the incoming fragments; setting TTL=0 ensures
                     // PacketRelayManager will skip relaying this reconstructed packet.
                     val suppressedTtlPacket = originalPacket.copy(ttl = 0u.toUByte())
-                    Log.d(TAG, "Successfully reassembled original (${reassembledData.size} bytes); set TTL=0 to suppress relay")
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Successfully reassembled original (${reassembledData.size} bytes); set TTL=0 to suppress relay")
                     return suppressedTtlPacket
                 } else {
                     val metadata = fragmentMetadata[fragmentIDString]
@@ -218,7 +219,7 @@ class FragmentManager {
                 }
             } else {
                 val received = fragmentMap?.size ?: 0
-                Log.d(TAG, "Fragment ${fragmentPayload.index} stored, have $received/${fragmentPayload.total} fragments for $fragmentIDString")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Fragment ${fragmentPayload.index} stored, have $received/${fragmentPayload.total} fragments for $fragmentIDString")
             }
             
         } catch (e: Exception) {
@@ -260,7 +261,7 @@ class FragmentManager {
         }
         
         if (oldFragments.isNotEmpty()) {
-            Log.d(TAG, "Cleaned up ${oldFragments.size} old fragment sets (iOS compatible)")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Cleaned up ${oldFragments.size} old fragment sets (iOS compatible)")
         }
     }
     

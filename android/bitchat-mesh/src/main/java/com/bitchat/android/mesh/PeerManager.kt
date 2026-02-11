@@ -4,6 +4,7 @@ import android.util.Log
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Peer information structure with verification status
@@ -136,12 +137,12 @@ class PeerManager {
         if (isNewPeer && isVerified) {
             announcedPeers.add(peerID)
             notifyPeerListUpdate()
-            Log.d(TAG, "🆕 New verified peer: $nickname ($peerID)")
+            if (BuildConfig.DEBUG) Log.d(TAG, "🆕 New verified peer: $nickname ($peerID)")
             return true
         } else if (isVerified) {
-            Log.d(TAG, "🔄 Updated verified peer: $nickname ($peerID)")
+            if (BuildConfig.DEBUG) Log.d(TAG, "🔄 Updated verified peer: $nickname ($peerID)")
         } else {
-            Log.d(TAG, "⚠️ Unverified peer announcement from: $nickname ($peerID)")
+            if (BuildConfig.DEBUG) Log.d(TAG, "⚠️ Unverified peer announcement from: $nickname ($peerID)")
         }
         
         return false
@@ -250,7 +251,7 @@ class PeerManager {
             notifyPeerListUpdate()
             return true
         }
-        Log.d(TAG, "Updated peer: $peerID ($nickname)")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Updated peer: $peerID ($nickname)")
         return false
     }
     
@@ -438,12 +439,12 @@ class PeerManager {
             .toList()
         
         peersToRemove.forEach { peerID ->
-            Log.d(TAG, "Removing stale peer: $peerID")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Removing stale peer: $peerID")
             removePeer(peerID)
         }
         
         if (peersToRemove.isNotEmpty()) {
-            Log.d(TAG, "Cleaned up ${peersToRemove.size} stale peers")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Cleaned up ${peersToRemove.size} stale peers")
         }
     }
     

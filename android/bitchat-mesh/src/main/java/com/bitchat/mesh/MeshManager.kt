@@ -11,6 +11,7 @@ class MeshManager(private val context: Context) {
     private var service: BluetoothMeshService? = null
     private var listener: MeshListener? = null
     private var nickname: String? = null
+    private var lastPeers: Set<String> = emptySet()
 
     fun setListener(listener: MeshListener?) {
         this.listener = listener
@@ -24,11 +25,14 @@ class MeshManager(private val context: Context) {
         mesh.delegate = buildDelegate()
         mesh.startServices()
         service = mesh
+        listener?.onStarted()
     }
 
     fun stop() {
         service?.stopServices()
         service = null
+        lastPeers = emptySet()
+        listener?.onStopped()
     }
 
     fun myPeerId(): String? = service?.myPeerID
@@ -39,6 +43,7 @@ class MeshManager(private val context: Context) {
 
     fun sendBroadcastMessage(content: String, mentions: List<String> = emptyList(), channel: String? = null) {
         service?.sendMessage(content, mentions, channel)
+        listener?.onSent(null, null)
     }
 
     fun sendPrivateMessage(
@@ -48,6 +53,7 @@ class MeshManager(private val context: Context) {
         messageID: String? = null
     ) {
         service?.sendPrivateMessage(content, recipientPeerID, recipientNickname, messageID)
+        listener?.onSent(messageID, recipientPeerID)
     }
 
     fun establish(peerID: String) {
@@ -75,28 +81,24 @@ class MeshManager(private val context: Context) {
                 listener?.onReceived(message)
             }
 
-            override fun didSendMessage(messageID: String?, recipientPeerID: String?) {
-                listener?.onSent(messageID, recipientPeerID)
-            }
-
             override fun didUpdatePeerList(peers: List<String>) {
+                val newPeers = peers.toSet()
+                val added = newPeers - lastPeers
+                val removed = lastPeers - newPeers
+                if (added.isNotEmpty()) {
+                    added.forEach { peerID ->
+                        listener?.onFound(peerID)
+                        listener?.onConnected(peerID)
+                    }
+                }
+                if (removed.isNotEmpty()) {
+                    removed.forEach { peerID ->
+                        listener?.onLost(peerID)
+                        listener?.onDisconnected(peerID)
+                    }
+                }
+                lastPeers = newPeers
                 listener?.onPeerListUpdated(peers)
-            }
-
-            override fun didFindPeer(peerID: String) {
-                listener?.onFound(peerID)
-            }
-
-            override fun didLosePeer(peerID: String) {
-                listener?.onLost(peerID)
-            }
-
-            override fun didConnectPeer(peerID: String) {
-                listener?.onConnected(peerID)
-            }
-
-            override fun didDisconnectPeer(peerID: String) {
-                listener?.onDisconnected(peerID)
             }
 
             override fun didEstablishSession(peerID: String) {
@@ -105,14 +107,6 @@ class MeshManager(private val context: Context) {
 
             override fun didUpdatePeerRSSI(peerID: String, rssi: Int) {
                 listener?.onRSSIUpdated(peerID, rssi)
-            }
-
-            override fun didStart() {
-                listener?.onStarted()
-            }
-
-            override fun didStop() {
-                listener?.onStopped()
             }
 
             override fun didReceiveChannelLeave(channel: String, fromPeer: String) {

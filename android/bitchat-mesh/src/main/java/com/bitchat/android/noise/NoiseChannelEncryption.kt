@@ -8,6 +8,7 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Channel encryption for password-protected channels - 100% compatible with iOS implementation
@@ -50,7 +51,7 @@ class NoiseChannelEncryption {
             channelKeys[channel] = key
             channelPasswords[channel] = password
             
-            Log.d(TAG, "Set password for channel $channel")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Set password for channel $channel")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to set password for channel $channel: ${e.message}")
         }
@@ -62,7 +63,7 @@ class NoiseChannelEncryption {
     fun removeChannelPassword(channel: String) {
         channelKeys.remove(channel)
         channelPasswords.remove(channel)
-        Log.d(TAG, "Removed password for channel $channel")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Removed password for channel $channel")
     }
     
     /**
@@ -271,6 +272,6 @@ class NoiseChannelEncryption {
     fun clear() {
         channelKeys.clear()
         channelPasswords.clear()
-        Log.d(TAG, "Cleared all channel encryption data")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Cleared all channel encryption data")
     }
 }

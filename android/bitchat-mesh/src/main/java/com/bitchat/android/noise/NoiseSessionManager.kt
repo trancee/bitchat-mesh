@@ -2,6 +2,7 @@ package com.bitchat.android.noise
 
 import android.util.Log
 import java.util.concurrent.ConcurrentHashMap
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * SIMPLIFIED Noise session manager - focuses on core functionality only
@@ -28,7 +29,7 @@ class NoiseSessionManager(
      */
     fun addSession(peerID: String, session: NoiseSession) {
         sessions[peerID] = session
-        Log.d(TAG, "Added new session for $peerID")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Added new session for $peerID")
     }
 
     /**
@@ -45,14 +46,14 @@ class NoiseSessionManager(
     fun removeSession(peerID: String) {
         sessions[peerID]?.destroy()
         sessions.remove(peerID)
-        Log.d(TAG, "Removed session for $peerID")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Removed session for $peerID")
     }
     
     /**
      * SIMPLIFIED: Initiate handshake - no tie breaker, just start
      */
     fun initiateHandshake(peerID: String): ByteArray {
-        Log.d(TAG, "initiateHandshake($peerID)")
+        if (BuildConfig.DEBUG) Log.d(TAG, "initiateHandshake($peerID)")
 
         // Remove any existing session first
         removeSession(peerID)
@@ -64,12 +65,12 @@ class NoiseSessionManager(
             localStaticPrivateKey = localStaticPrivateKey,
             localStaticPublicKey = localStaticPublicKey
         )
-        Log.d(TAG, "Storing new INITIATOR session for $peerID")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Storing new INITIATOR session for $peerID")
         addSession(peerID, session)
         
         try {
             val handshakeData = session.startHandshake()
-            Log.d(TAG, "Started handshake with $peerID as INITIATOR")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Started handshake with $peerID as INITIATOR")
             return handshakeData
         } catch (e: Exception) {
             sessions.remove(peerID)
@@ -81,14 +82,14 @@ class NoiseSessionManager(
      * Handle incoming handshake message
      */
     fun processHandshakeMessage(peerID: String, message: ByteArray): ByteArray? {
-        Log.d(TAG, "processHandshakeMessage($peerID, ${message.size} bytes)")
+        if (BuildConfig.DEBUG) Log.d(TAG, "processHandshakeMessage($peerID, ${message.size} bytes)")
         
         try {
             var session = getSession(peerID)
             
             // If no session exists, create one as responder
             if (session == null) {
-                Log.d(TAG, "Creating new RESPONDER session for $peerID")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Creating new RESPONDER session for $peerID")
                 session = NoiseSession(
                     peerID = peerID,
                     isInitiator = false,
@@ -103,7 +104,7 @@ class NoiseSessionManager(
             
             // Check if session is established
             if (session.isEstablished()) {
-                Log.d(TAG, "✅ Session ESTABLISHED with $peerID")
+                if (BuildConfig.DEBUG) Log.d(TAG, "✅ Session ESTABLISHED with $peerID")
                 val remoteStaticKey = session.getRemoteStaticPublicKey()
                 if (remoteStaticKey != null) {
                     onSessionEstablished?.invoke(peerID, remoteStaticKey)
@@ -152,7 +153,7 @@ class NoiseSessionManager(
      */
     fun hasEstablishedSession(peerID: String): Boolean {
         val hasSession = getSession(peerID)?.isEstablished() ?: false
-        Log.d(TAG, "hasEstablishedSession($peerID): $hasSession")
+        if (BuildConfig.DEBUG) Log.d(TAG, "hasEstablishedSession($peerID): $hasSession")
         return hasSession
     }
     
@@ -210,7 +211,7 @@ class NoiseSessionManager(
     fun shutdown() {
         sessions.values.forEach { it.destroy() }
         sessions.clear()
-        Log.d(TAG, "Noise session manager shut down")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Noise session manager shut down")
     }
 }
 

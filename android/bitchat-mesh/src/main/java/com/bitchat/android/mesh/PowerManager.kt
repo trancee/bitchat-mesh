@@ -16,6 +16,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.*
 import kotlin.math.max
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Power-aware Bluetooth management for bitchat
@@ -129,12 +130,12 @@ class PowerManager(private val context: Context) : LifecycleEventObserver {
     override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
         when (event) {
             Lifecycle.Event.ON_START -> {
-                Log.d(TAG, "Process lifecycle: ON_START (App coming to foreground)")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Process lifecycle: ON_START (App coming to foreground)")
                 isAppInBackground = false
                 updatePowerMode()
             }
             Lifecycle.Event.ON_STOP -> {
-                Log.d(TAG, "Process lifecycle: ON_STOP (App going to background)")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Process lifecycle: ON_STOP (App going to background)")
                 isAppInBackground = true
                 updatePowerMode()
             }
@@ -314,13 +315,13 @@ class PowerManager(private val context: Context) : LifecycleEventObserver {
         dutyCycleJob = powerScope.launch {
             while (isActive && shouldUseDutyCycle()) {
                 // Scan ON period
-                Log.d(TAG, "Duty cycle: Scan ON for ${onDuration}ms")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Duty cycle: Scan ON for ${onDuration}ms")
                 delegate?.onScanStateChanged(true)
                 delay(onDuration)
                 
                 // Scan OFF period (keep advertising active)
                 if (isActive && shouldUseDutyCycle()) {
-                    Log.d(TAG, "Duty cycle: Scan OFF for ${offDuration}ms")
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Duty cycle: Scan OFF for ${offDuration}ms")
                     delegate?.onScanStateChanged(false)
                     delay(offDuration)
                 }

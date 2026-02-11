@@ -178,11 +178,11 @@ data class BitchatPacket(
  * Binary Protocol implementation - supports v1 and v2, backward compatible
  */
 object BinaryProtocol {
-    const val V1_HEADER_SIZE = 14
-    const val V2_HEADER_SIZE = 16
-    const val SENDER_ID_SIZE = 8
-    const val RECIPIENT_ID_SIZE = 8
-    const val SIGNATURE_SIZE = 64
+    private const val HEADER_SIZE_V1 = 13
+    private const val HEADER_SIZE_V2 = 15
+    private const val SENDER_ID_SIZE = 8
+    private const val RECIPIENT_ID_SIZE = 8
+    private const val SIGNATURE_SIZE = 64
 
     object Flags {
         const val HAS_RECIPIENT: UByte = 0x01u
@@ -191,80 +191,39 @@ object BinaryProtocol {
         const val HAS_ROUTE: UByte = 0x08u
     }
 
-    private fun safeLogError(message: String, throwable: Exception? = null) {
-        try {
-            if (throwable != null) {
-                Log.e("BinaryProtocol", message, throwable)
-            } else {
-                Log.e("BinaryProtocol", message)
-            }
-        } catch (_: RuntimeException) {
-            // Ignore Log errors in local unit tests.
-        }
-    }
-
-    private fun safeLogWarn(message: String) {
-        try {
-            Log.w("BinaryProtocol", message)
-        } catch (_: RuntimeException) {
-            // Ignore Log errors in local unit tests.
-        }
-    }
-
     private fun getHeaderSize(version: UByte): Int {
         return when (version) {
-            1u.toUByte() -> V1_HEADER_SIZE
-            2u.toUByte() -> V2_HEADER_SIZE
-            else -> -1
+            1u.toUByte() -> HEADER_SIZE_V1
+            else -> HEADER_SIZE_V2  // v2+ will use 4-byte payload length
         }
     }
-
-    private fun lengthFieldSize(version: UByte): Int {
-        return if (version == 2u.toUByte()) 4 else 2
-    }
     
-    fun encode(packet: BitchatPacket, padding: Boolean = true): ByteArray? {
+    fun encode(packet: BitchatPacket): ByteArray? {
         try {
-            val version = packet.version
-            if (version != 1u.toUByte() && version != 2u.toUByte()) return null
-
             // Try to compress payload if beneficial
             var payload = packet.payload
             var originalPayloadSize: Int? = null
             var isCompressed = false
-
-            val maxRepresentable = if (version == 2u.toUByte()) UInt.MAX_VALUE.toLong() else UShort.MAX_VALUE.toLong()
-            if (CompressionUtil.shouldCompress(payload) && payload.size.toLong() <= maxRepresentable) {
+            
+            if (CompressionUtil.shouldCompress(payload)) {
                 CompressionUtil.compress(payload)?.let { compressedPayload ->
                     originalPayloadSize = payload.size
                     payload = compressedPayload
                     isCompressed = true
                 }
             }
-
-            val lengthFieldBytes = lengthFieldSize(version)
-            val originalRoute = packet.route ?: emptyList()
-            if (originalRoute.any { it.isEmpty() }) return null
-            val sanitizedRoute = originalRoute.map { hop ->
-                val trimmed = hop.take(SENDER_ID_SIZE).toByteArray()
-                if (trimmed.size < SENDER_ID_SIZE) trimmed + ByteArray(SENDER_ID_SIZE - trimmed.size) else trimmed
-            }
-            if (sanitizedRoute.size > 255) return null
-            val hasRoute = sanitizedRoute.isNotEmpty()
-            val routeLength = if (hasRoute) 1 + sanitizedRoute.size * SENDER_ID_SIZE else 0
-
-            val sizeFieldBytes = if (isCompressed) lengthFieldBytes else 0
-            val payloadDataSize = routeLength + payload.size + sizeFieldBytes
-
-            if (version == 1u.toUByte() && payloadDataSize > UShort.MAX_VALUE.toInt()) return null
-            if (version == 2u.toUByte() && payloadDataSize.toLong() > UInt.MAX_VALUE.toLong()) return null
-
-            val headerSize = getHeaderSize(version)
-            if (headerSize <= 0) return null
+            
+            // Compute a safe capacity for the unpadded frame
+            val headerSize = getHeaderSize(packet.version)
             val recipientBytes = if (packet.recipientID != null) RECIPIENT_ID_SIZE else 0
             val signatureBytes = if (packet.signature != null) SIGNATURE_SIZE else 0
-            val capacity = headerSize + SENDER_ID_SIZE + recipientBytes + payloadDataSize + signatureBytes + 16
-            val buffer = ByteBuffer.allocate(capacity.coerceAtLeast(256)).apply { order(ByteOrder.BIG_ENDIAN) }
+            val sizeFieldBytes = if (isCompressed) (if (packet.version >= 2u.toUByte()) 4 else 2) else 0
+            val payloadBytes = payload.size + sizeFieldBytes
+            val routeBytes = if (!packet.route.isNullOrEmpty() && packet.version >= 2u.toUByte()) {
+                1 + (packet.route!!.size.coerceAtMost(255) * SENDER_ID_SIZE)
+            } else 0
+            val capacity = headerSize + SENDER_ID_SIZE + recipientBytes + payloadBytes + signatureBytes + routeBytes + 16 // small slack
+            val buffer = ByteBuffer.allocate(capacity.coerceAtLeast(512)).apply { order(ByteOrder.BIG_ENDIAN) }
             
             // Header
             buffer.put(packet.version.toByte())
@@ -285,16 +244,18 @@ object BinaryProtocol {
             if (isCompressed) {
                 flags = flags or Flags.IS_COMPRESSED
             }
-            if (hasRoute) {
+            // HAS_ROUTE is only supported for v2+ packets
+            if (!packet.route.isNullOrEmpty() && packet.version >= 2u.toUByte()) {
                 flags = flags or Flags.HAS_ROUTE
             }
             buffer.put(flags.toByte())
             
             // Payload length (2 or 4 bytes, big-endian) - includes original size if compressed
-            if (version == 2u.toUByte()) {
-                buffer.putInt(payloadDataSize)
+            val payloadDataSize = payload.size + sizeFieldBytes
+            if (packet.version >= 2u.toUByte()) {
+                buffer.putInt(payloadDataSize)  // 4 bytes for v2+
             } else {
-                buffer.putShort(payloadDataSize.toShort())
+                buffer.putShort(payloadDataSize.toShort())  // 2 bytes for v1
             }
             
             // SenderID (exactly 8 bytes)
@@ -314,19 +275,24 @@ object BinaryProtocol {
             }
 
             // Route (optional, v2+ only): 1 byte count + N*8 bytes
-            if (hasRoute) {
-                val count = sanitizedRoute.size
-                buffer.put(count.toByte())
-                sanitizedRoute.forEach { hop -> buffer.put(hop) }
+            if (packet.version >= 2u.toUByte() && !packet.route.isNullOrEmpty()) {
+                packet.route?.let { routeList ->
+                    val cleaned = routeList.map { bytes -> bytes.take(SENDER_ID_SIZE).toByteArray().let { if (it.size < SENDER_ID_SIZE) it + ByteArray(SENDER_ID_SIZE - it.size) else it } }
+                    val count = cleaned.size.coerceAtMost(255)
+                    buffer.put(count.toByte())
+                    cleaned.take(count).forEach { hop -> buffer.put(hop) }
+                }
             }
             
             // Payload (with original size prepended if compressed)
             if (isCompressed) {
-                val originalSize = originalPayloadSize ?: return null
-                if (version == 2u.toUByte()) {
-                    buffer.putInt(originalSize)
-                } else {
-                    buffer.putShort(originalSize.toShort())
+                val originalSize = originalPayloadSize
+                if (originalSize != null) {
+                    if (packet.version >= 2u.toUByte()) {
+                        buffer.putInt(originalSize.toInt())
+                    } else {
+                        buffer.putShort(originalSize.toShort())
+                    }
                 }
             }
             buffer.put(payload)
@@ -339,16 +305,15 @@ object BinaryProtocol {
             val result = ByteArray(buffer.position())
             buffer.rewind()
             buffer.get(result)
-
-            return if (padding) {
-                val optimalSize = MessagePadding.optimalBlockSize(result.size)
-                MessagePadding.pad(result, optimalSize)
-            } else {
-                result
-            }
+            
+            // Apply padding to standard block sizes for traffic analysis resistance
+            val optimalSize = MessagePadding.optimalBlockSize(result.size)
+            val paddedData = MessagePadding.pad(result, optimalSize)
+            
+            return paddedData
             
         } catch (e: Exception) {
-            safeLogError("Error encoding packet type ${packet.type}: ${e.message}", e)
+            Log.e("BinaryProtocol", "Error encoding packet type ${packet.type}: ${e.message}")
             return null
         }
     }
@@ -369,126 +334,127 @@ object BinaryProtocol {
      */
     private fun decodeCore(raw: ByteArray): BitchatPacket? {
         try {
-            if (raw.size < V1_HEADER_SIZE + SENDER_ID_SIZE) return null
+            if (raw.size < HEADER_SIZE_V1 + SENDER_ID_SIZE) return null
 
-            var offset = 0
-            fun require(n: Int): Boolean = offset + n <= raw.size
-            fun read8(): UByte? {
-                if (!require(1)) return null
-                val value = raw[offset].toUByte()
-                offset += 1
-                return value
-            }
-            fun read16(): UShort? {
-                if (!require(2)) return null
-                val value = ((raw[offset].toInt() and 0xFF) shl 8) or (raw[offset + 1].toInt() and 0xFF)
-                offset += 2
-                return value.toUShort()
-            }
-            fun read32(): UInt? {
-                if (!require(4)) return null
-                val value = ((raw[offset].toLong() and 0xFF) shl 24) or
-                    ((raw[offset + 1].toLong() and 0xFF) shl 16) or
-                    ((raw[offset + 2].toLong() and 0xFF) shl 8) or
-                    (raw[offset + 3].toLong() and 0xFF)
-                offset += 4
-                return value.toUInt()
-            }
-            fun readData(n: Int): ByteArray? {
-                if (!require(n)) return null
-                val value = raw.copyOfRange(offset, offset + n)
-                offset += n
-                return value
-            }
+            val buffer = ByteBuffer.wrap(raw).apply { order(ByteOrder.BIG_ENDIAN) }
 
-            val version = read8() ?: return null
-            if (version != 1u.toUByte() && version != 2u.toUByte()) return null
+            // Header
+            val version = buffer.get().toUByte()
+            if (version.toUInt() != 1u && version.toUInt() != 2u) return null  // Support v1 and v2
+
             val headerSize = getHeaderSize(version)
-            if (headerSize <= 0) return null
-            if (raw.size < headerSize + SENDER_ID_SIZE) return null
 
-            val type = read8() ?: return null
-            val ttl = read8() ?: return null
+            val type = buffer.get().toUByte()
+            val ttl = buffer.get().toUByte()
 
-            var timestamp = 0uL
-            repeat(8) {
-                val b = read8() ?: return null
-                timestamp = (timestamp shl 8) or b.toULong()
-            }
+            // Timestamp
+            val timestamp = buffer.getLong().toULong()
 
-            val flags = read8() ?: return null
+            // Flags
+            val flags = buffer.get().toUByte()
             val hasRecipient = (flags and Flags.HAS_RECIPIENT) != 0u.toUByte()
             val hasSignature = (flags and Flags.HAS_SIGNATURE) != 0u.toUByte()
             val isCompressed = (flags and Flags.IS_COMPRESSED) != 0u.toUByte()
-            val hasRoute = (flags and Flags.HAS_ROUTE) != 0u.toUByte()
+            // HAS_ROUTE is only valid for v2+ packets; ignore the flag for v1
+            val hasRoute = (version >= 2u.toUByte()) && (flags and Flags.HAS_ROUTE) != 0u.toUByte()
 
-            val payloadLength = if (version == 2u.toUByte()) {
-                read32()?.toInt() ?: return null
+            // Payload length - version-dependent (2 or 4 bytes)
+            val payloadLength = if (version >= 2u.toUByte()) {
+                buffer.getInt().toUInt()  // 4 bytes for v2+
             } else {
-                read16()?.toInt() ?: return null
+                buffer.getShort().toUShort().toUInt()  // 2 bytes for v1, convert to UInt
             }
-            if (payloadLength < 0) return null
 
-            val senderID = readData(SENDER_ID_SIZE) ?: return null
-            val recipientID = if (hasRecipient) {
-                readData(RECIPIENT_ID_SIZE) ?: return null
-            } else null
-
-            var remainingPayloadBytes = payloadLength
-            var route: List<ByteArray>? = null
+            // Calculate expected total size
+            var expectedSize = headerSize + SENDER_ID_SIZE + payloadLength.toInt()
+            if (hasRecipient) expectedSize += RECIPIENT_ID_SIZE
+            var routeCount = 0
             if (hasRoute) {
-                if (remainingPayloadBytes < 1) return null
-                val routeCount = read8()?.toInt() ?: return null
-                remainingPayloadBytes -= 1
-                if (routeCount > 0) {
+                // Peek count (1 byte) without consuming buffer for now
+                // The buffer is currently positioned at the start of SenderID (after fixed header)
+                // We must skip SenderID and RecipientID (if present) to find the route count
+                val currentPos = buffer.position()
+                var routeOffset = currentPos + SENDER_ID_SIZE
+                if (hasRecipient) {
+                    routeOffset += RECIPIENT_ID_SIZE
+                }
+
+                if (raw.size >= routeOffset + 1) {
+                    routeCount = raw[routeOffset].toUByte().toInt()
+                }
+                expectedSize += 1 + (routeCount * SENDER_ID_SIZE)
+            }
+            if (hasSignature) expectedSize += SIGNATURE_SIZE
+
+            if (raw.size < expectedSize) return null
+            
+            // SenderID
+            val senderID = ByteArray(SENDER_ID_SIZE)
+            buffer.get(senderID)
+            
+            // RecipientID
+            val recipientID = if (hasRecipient) {
+                val recipientBytes = ByteArray(RECIPIENT_ID_SIZE)
+                buffer.get(recipientBytes)
+                recipientBytes
+            } else null
+            
+            // Route (optional)
+            val route: List<ByteArray>? = if (hasRoute) {
+                val count = buffer.get().toUByte().toInt()
+                if (count == 0) {
+                    null // Treat empty route list as null to enforce canonical representation
+                } else {
                     val hops = mutableListOf<ByteArray>()
-                    repeat(routeCount) {
-                        if (remainingPayloadBytes < SENDER_ID_SIZE) return null
-                        val hop = readData(SENDER_ID_SIZE) ?: return null
-                        remainingPayloadBytes -= SENDER_ID_SIZE
+                    repeat(count) {
+                        val hop = ByteArray(SENDER_ID_SIZE)
+                        buffer.get(hop)
                         hops.add(hop)
                     }
-                    route = hops
+                    hops
                 }
-            }
-
-            val payload = if (isCompressed) {
-                val lengthFieldBytes = lengthFieldSize(version)
-                if (remainingPayloadBytes < lengthFieldBytes) return null
-                val originalSize = if (version == 2u.toUByte()) {
-                    read32()?.toInt() ?: return null
-                } else {
-                    read16()?.toInt() ?: return null
-                }
-                remainingPayloadBytes -= lengthFieldBytes
-                if (originalSize < 0 || originalSize > com.bitchat.android.util.FileTransferLimits.maxFramedFileBytes) return null
-
-                val compressedSize = remainingPayloadBytes
-                if (compressedSize <= 0) return null
-                val compressed = readData(compressedSize) ?: return null
-                remainingPayloadBytes = 0
-
-                val ratio = originalSize.toDouble() / compressedSize.toDouble()
-                if (ratio > 50_000.0) {
-                    safeLogWarn("🚫 Suspicious compression ratio: ${ratio}:1")
-                    return null
-                }
-
-                val decompressed = CompressionUtil.decompress(compressed, originalSize) ?: return null
-                if (decompressed.size != originalSize) return null
-                decompressed
-            } else {
-                val rawPayload = readData(remainingPayloadBytes) ?: return null
-                remainingPayloadBytes = 0
-                rawPayload
-            }
-
-            val signature = if (hasSignature) {
-                readData(SIGNATURE_SIZE) ?: return null
             } else null
 
-            if (offset > raw.size) return null
+            // Payload
+            val payload = if (isCompressed) {
+                val lengthFieldBytes = if (version >= 2u.toUByte()) 4 else 2
+                if (payloadLength.toInt() < lengthFieldBytes) return null
+                
+                val originalSize = if (version >= 2u.toUByte()) {
+                    buffer.getInt()
+                } else {
+                    buffer.getShort().toUShort().toInt()
+                }
+                
+                // Compressed payload
+                val compressedSize = payloadLength.toInt() - lengthFieldBytes
+                val compressedPayload = ByteArray(compressedSize)
+                buffer.get(compressedPayload)
 
+                // Security check: Compression bomb protection
+                if (compressedSize > 0) {
+                    val ratio = originalSize.toDouble() / compressedSize.toDouble()
+                    if (ratio > 50_000.0) {
+                        Log.w("BinaryProtocol", "🚫 Suspicious compression ratio: ${ratio}:1")
+                        return null
+                    }
+                }
+                
+                // Decompress
+                CompressionUtil.decompress(compressedPayload, originalSize) ?: return null
+            } else {
+                val payloadBytes = ByteArray(payloadLength.toInt())
+                buffer.get(payloadBytes)
+                payloadBytes
+            }
+            
+            // Signature
+            val signature = if (hasSignature) {
+                val signatureBytes = ByteArray(SIGNATURE_SIZE)
+                buffer.get(signatureBytes)
+                signatureBytes
+            } else null
+            
             return BitchatPacket(
                 version = version,
                 type = type,
@@ -502,7 +468,7 @@ object BinaryProtocol {
             )
             
         } catch (e: Exception) {
-            safeLogError("Error decoding packet: ${e.message}", e)
+            Log.e("BinaryProtocol", "Error decoding packet: ${e.message}")
             return null
         }
     }

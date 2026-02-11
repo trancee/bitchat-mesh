@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.*
+import com.permissionless.bitchat.mesh.BuildConfig
 
 /**
  * Manages GATT server operations, advertising, and server-side connections
@@ -61,16 +62,8 @@ class BluetoothGattServerManager(
      * Start GATT server
      */
     fun start(): Boolean {
-        // Respect debug setting
-        try {
-            if (!com.bitchat.android.ui.debug.DebugSettingsManager.getInstance().gattServerEnabled.value) {
-                Log.i(TAG, "Server start skipped: GATT Server disabled in debug settings")
-                return false
-            }
-        } catch (_: Exception) { }
-
         if (isActive) {
-            Log.d(TAG, "GATT server already active; start is a no-op")
+            if (BuildConfig.DEBUG) Log.d(TAG, "GATT server already active; start is a no-op")
             return true
         }
         if (!permissionManager.hasBluetoothPermissions()) {
@@ -156,7 +149,7 @@ class BluetoothGattServerManager(
             override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
                 // Guard against callbacks after service shutdown
                 if (!isActive) {
-                    Log.d(TAG, "Server: Ignoring connection state change after shutdown")
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Server: Ignoring connection state change after shutdown")
                     return
                 }
                 
@@ -193,12 +186,12 @@ class BluetoothGattServerManager(
             override fun onServiceAdded(status: Int, service: BluetoothGattService) {
                 // Guard against callbacks after service shutdown
                 if (!isActive) {
-                    Log.d(TAG, "Server: Ignoring service added callback after shutdown")
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Server: Ignoring service added callback after shutdown")
                     return
                 }
                 
                 if (status == BluetoothGatt.GATT_SUCCESS) {
-                    Log.d(TAG, "Server: Service added successfully: ${service.uuid}")
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Server: Service added successfully: ${service.uuid}")
                 } else {
                     Log.e(TAG, "Server: Failed to add service: ${service.uuid}, status: $status")
                 }
@@ -215,7 +208,7 @@ class BluetoothGattServerManager(
             ) {
                 // Guard against callbacks after service shutdown
                 if (!isActive) {
-                    Log.d(TAG, "Server: Ignoring characteristic write after shutdown")
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Server: Ignoring characteristic write after shutdown")
                     return
                 }
                 
@@ -224,7 +217,7 @@ class BluetoothGattServerManager(
                     val packet = BitchatPacket.fromBinaryData(value)
                     if (packet != null) {
                         val peerID = packet.senderID.take(8).toByteArray().joinToString("") { "%02x".format(it) }
-                        Log.d(TAG, "Server: Parsed packet type ${packet.type} from $peerID")
+                        if (BuildConfig.DEBUG) Log.d(TAG, "Server: Parsed packet type ${packet.type} from $peerID")
                         delegate?.onPacketReceived(packet, peerID, device)
                     } else {
                         Log.w(TAG, "Server: Failed to parse packet from ${device.address}, size: ${value.size} bytes")
@@ -248,14 +241,14 @@ class BluetoothGattServerManager(
             ) {
                 // Guard against callbacks after service shutdown
                 if (!isActive) {
-                    Log.d(TAG, "Server: Ignoring descriptor write after shutdown")
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Server: Ignoring descriptor write after shutdown")
                     return
                 }
                 
                 if (BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE.contentEquals(value)) {
                     connectionTracker.addSubscribedDevice(device)
 
-                    Log.d(TAG, "Server: Connection setup complete for ${device.address}")
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Server: Connection setup complete for ${device.address}")
                     connectionScope.launch {
                         delay(100)
                         if (isActive) { // Check if still active
@@ -272,7 +265,7 @@ class BluetoothGattServerManager(
         
         // Proper cleanup sequencing to prevent race conditions
         gattServer?.let { server ->
-            Log.d(TAG, "Cleaning up existing GATT server")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Cleaning up existing GATT server")
             try {
                 server.close()
             } catch (e: Exception) {
@@ -284,7 +277,7 @@ class BluetoothGattServerManager(
         Thread.sleep(100)
         
         if (!isActive) {
-            Log.d(TAG, "Service inactive, skipping GATT server creation")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Service inactive, skipping GATT server creation")
             return
         }
         
@@ -321,9 +314,6 @@ class BluetoothGattServerManager(
      */
     @Suppress("DEPRECATION")
     private fun startAdvertising() {
-        // Respect debug setting
-        val enabled = try { com.bitchat.android.ui.debug.DebugSettingsManager.getInstance().gattServerEnabled.value } catch (_: Exception) { true }
-
         // Guard conditions – never throw here to avoid crashing the app from a background coroutine
         if (!permissionManager.hasBluetoothPermissions()) {
             Log.w(TAG, "Not starting advertising: missing Bluetooth permissions")
@@ -334,11 +324,7 @@ class BluetoothGattServerManager(
             return
         }
         if (!isActive) {
-            Log.d(TAG, "Not starting advertising: manager not active")
-            return
-        }
-        if (!enabled) {
-            Log.i(TAG, "Not starting advertising: GATT Server disabled via debug settings")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Not starting advertising: manager not active")
             return
         }
         if (bleAdvertiser == null) {
@@ -411,9 +397,7 @@ class BluetoothGattServerManager(
      * Restart advertising (for power mode changes)
      */
     fun restartAdvertising() {
-        // Respect debug setting
-        val enabled = try { com.bitchat.android.ui.debug.DebugSettingsManager.getInstance().gattServerEnabled.value } catch (_: Exception) { true }
-        if (!isActive || !enabled) {
+        if (!isActive) {
             stopAdvertising()
             return
         }
