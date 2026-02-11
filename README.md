@@ -23,6 +23,13 @@ cd android
 ./gradlew :bitchat-mesh:test
 ```
 
+Run release unit tests:
+
+```bash
+cd android
+./gradlew :bitchat-mesh:testReleaseUnitTest
+```
+
 Artifacts land in:
 
 ```
