@@ -586,6 +586,8 @@ struct ContentView: View {
 
             TextField("Write a message", text: $model.messageText)
                 .textFieldStyle(.plain)
+                .foregroundColor(MeshSamplePalette.textPrimary)
+                .tint(MeshSamplePalette.primary)
                 .padding(12)
                 .background(MeshSamplePalette.surfaceAlt)
                 .overlay(
