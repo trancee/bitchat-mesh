@@ -123,7 +123,7 @@ class MeshManager(private val context: Context) {
                 listener?.onEstablished(peerID)
             }
 
-            override fun didUpdatePeerRSSI(peerID: String, rssi: Int) {
+            override fun didUpdateRSSI(peerID: String, rssi: Int) {
                 listener?.onRSSIUpdated(peerID, rssi)
             }
 

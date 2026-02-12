@@ -543,7 +543,7 @@ class BluetoothMeshService(private val context: Context) {
                 // Find the peer ID for this device address and update RSSI in PeerManager
                 connectionManager.addressPeerMap[deviceAddress]?.let { peerID ->
                     peerManager.updatePeerRSSI(peerID, rssi)
-                    delegate?.didUpdatePeerRSSI(peerID, rssi)
+                    delegate?.didUpdateRSSI(peerID, rssi)
                 }
             }
         }
@@ -1343,7 +1343,7 @@ interface BluetoothMeshDelegate {
     fun didReceiveMessage(message: BitchatMessage)
     fun didUpdatePeerList(peers: List<String>)
     fun didEstablishSession(peerID: String)
-    fun didUpdatePeerRSSI(peerID: String, rssi: Int)
+    fun didUpdateRSSI(peerID: String, rssi: Int)
     fun didReceiveChannelLeave(channel: String, fromPeer: String)
     fun didReceiveDeliveryAck(messageID: String, recipientPeerID: String)
     fun didReceiveReadReceipt(messageID: String, recipientPeerID: String)
