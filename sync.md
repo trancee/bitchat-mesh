@@ -35,4 +35,6 @@ There are platforms: android and ios in their respective folder
 
 ## Notes
 
-Sending a file requires an established session; the new button will log and refuse sending if no session exists. Consider disabling the button in the UI unless a session is established and decide whether to trigger session establishment automatically when sending is attempted.
+- Sending a file requires an established session; the new button will log and refuse sending if no session exists. Consider disabling the button in the UI unless a session is established and decide whether to trigger session establishment automatically when sending is attempted.
+
+- Planning to add an `onTransferProgress` method with a default implementation to the Android `MeshListener` interface to avoid breaking changes, and to forward it via `MeshManager`. Also implement a progress manager in iOS and integrate it through the iOS `MeshManager` after reviewing its code.

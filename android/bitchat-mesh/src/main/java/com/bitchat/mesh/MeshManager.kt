@@ -3,15 +3,29 @@ package com.bitchat.mesh
 import android.content.Context
 import com.bitchat.android.mesh.BluetoothMeshDelegate
 import com.bitchat.android.mesh.BluetoothMeshService
+import com.bitchat.android.mesh.TransferProgressManager
 import com.bitchat.android.model.BitchatFilePacket
 import com.bitchat.android.model.BitchatMessage
 import com.bitchat.android.services.NicknameProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class MeshManager(private val context: Context) {
     private var service: BluetoothMeshService? = null
     private var listener: MeshListener? = null
     private var nickname: String? = null
     private var lastPeers: Set<String> = emptySet()
+    private val progressScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    init {
+        progressScope.launch {
+            TransferProgressManager.events.collect { event ->
+                listener?.onTransferProgress(event.transferId, event.sent, event.total, event.completed)
+            }
+        }
+    }
 
     fun setListener(listener: MeshListener?) {
         this.listener = listener

@@ -177,6 +177,24 @@
         android:textSize="12sp"
         android:textColor="@color/mesh_text_secondary" />
 
+    <ProgressBar
+        android:id="@+id/file_transfer_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:indeterminate="false"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/file_transfer_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textSize="12sp"
+        android:textColor="@color/mesh_text_secondary"
+        android:visibility="gone" />
+
     <Button
         android:id="@+id/send_direct_button"
         android:layout_width="match_parent"

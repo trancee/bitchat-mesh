@@ -19,4 +19,5 @@ interface MeshListener {
     fun onReadReceipt(messageID: String, recipientPeerID: String)
     fun onVerifyChallenge(peerID: String, payload: ByteArray, timestampMs: Long)
     fun onVerifyResponse(peerID: String, payload: ByteArray, timestampMs: Long)
+    fun onTransferProgress(transferId: String, sent: Int, total: Int, completed: Boolean) {}
 }

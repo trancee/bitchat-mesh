@@ -19,6 +19,7 @@
     <string name="label_pending_direct">Pending direct: %1$d</string>
     <string name="label_handshake_pending">Handshake pending</string>
     <string name="label_session_status">Session: %1$s</string>
+    <string name="label_file_transfer_status">File transfer: %1$d/%2$d</string>
     <string name="status_session_established">established</string>
     <string name="status_session_not_established">not established</string>
     <string name="status_session_no_peer">no peer</string>

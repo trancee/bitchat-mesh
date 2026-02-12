@@ -9,6 +9,7 @@ public final class MeshManager {
     private let identityManager: SecureIdentityStateManager
     private let bleService: BLEService
     private var hasStarted: Bool = false
+    private var transferProgressObserverId: UUID?
 
     public var myPeerID: PeerID {
         bleService.myPeerID
@@ -32,6 +33,20 @@ public final class MeshManager {
         )
         self.bleService.delegate = self
         VerificationService.shared.configure(with: bleService.getNoiseService())
+        self.transferProgressObserverId = TransferProgressManager.shared.addObserver { [weak self] event in
+            self?.listener?.onTransferProgress(
+                transferId: event.transferId,
+                sent: event.sent,
+                total: event.total,
+                completed: event.completed
+            )
+        }
+    }
+
+    deinit {
+        if let observerId = transferProgressObserverId {
+            TransferProgressManager.shared.removeObserver(observerId)
+        }
     }
 
     /// Assign a listener for mesh events.

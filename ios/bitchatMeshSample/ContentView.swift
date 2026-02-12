@@ -13,6 +13,7 @@ final class MeshSampleModel: ObservableObject, MeshListener {
     @Published var myPeerId = "Not available yet"
     @Published var selectedPeerId = ""
     @Published var pendingDirectCountByPeer: [String: Int] = [:]
+    @Published var fileTransferProgress: TransferProgressState?
 
     private let mesh: MeshManager
     private let dateFormatter: DateFormatter
@@ -70,6 +71,7 @@ final class MeshSampleModel: ObservableObject, MeshListener {
         myPeerId = "Not available yet"
         peers = []
         selectedPeerId = ""
+        fileTransferProgress = nil
         pendingDirectMessages.removeAll()
         pendingRetryTimers.values.forEach { $0.invalidate() }
         pendingRetryTimers.removeAll()
@@ -410,6 +412,26 @@ final class MeshSampleModel: ObservableObject, MeshListener {
         append("noise payload \(type) from \(peerID.id)")
     }
 
+    func onTransferProgress(transferId: String, sent: Int, total: Int, completed: Bool) {
+        DispatchQueue.main.async {
+            let safeTotal = max(total, 1)
+            self.fileTransferProgress = TransferProgressState(
+                transferId: transferId,
+                sent: min(sent, safeTotal),
+                total: safeTotal,
+                completed: completed
+            )
+            if completed {
+                let currentId = transferId
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    if self.fileTransferProgress?.transferId == currentId {
+                        self.fileTransferProgress = nil
+                    }
+                }
+            }
+        }
+    }
+
     private final class PendingDirectMessage {
         let peerId: String
         let nickname: String
@@ -423,6 +445,22 @@ final class MeshSampleModel: ObservableObject, MeshListener {
             self.content = content
             self.createdAt = createdAt
             self.attempts = attempts
+        }
+    }
+
+    struct TransferProgressState {
+        let transferId: String
+        let sent: Int
+        let total: Int
+        let completed: Bool
+
+        var fraction: Double {
+            guard total > 0 else { return 0 }
+            return Double(sent) / Double(total)
+        }
+
+        var label: String {
+            "File transfer: \(sent)/\(total)"
         }
     }
 }
@@ -530,6 +568,14 @@ struct ContentView: View {
                 Text(model.sessionStatusText)
                     .font(.caption)
                     .foregroundColor(model.selectedPeerId.isEmpty ? MeshSamplePalette.textHint : MeshSamplePalette.textSecondary)
+
+                if let progress = model.fileTransferProgress {
+                    ProgressView(value: progress.fraction)
+                        .tint(MeshSamplePalette.primary)
+                    Text(progress.label)
+                        .font(.caption)
+                        .foregroundColor(MeshSamplePalette.textSecondary)
+                }
 
                 Button("Send direct") {
                     model.sendDirect()

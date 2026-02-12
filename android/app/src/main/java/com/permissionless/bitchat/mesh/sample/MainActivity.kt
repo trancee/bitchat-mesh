@@ -10,6 +10,7 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,6 +41,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var establishButton: Button
     private lateinit var sendFileButton: Button
     private lateinit var sessionStatusText: TextView
+    private lateinit var fileTransferProgress: ProgressBar
+    private lateinit var fileTransferStatus: TextView
     private lateinit var peerIdSpinner: AppCompatSpinner
     private lateinit var peerAdapter: ArrayAdapter<String>
     private val peerIds: MutableList<String> = mutableListOf()
@@ -55,6 +58,8 @@ class MainActivity : AppCompatActivity() {
     private val pendingRetryDelayMs = 3000L
     private val pendingTimeoutMs = 15000L
     private val pendingMaxAttempts = 3
+    private val transferHideHandler = Handler(Looper.getMainLooper())
+    private var transferHideRunnable: Runnable? = null
     private val logLines: ArrayDeque<String> = ArrayDeque()
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     private var isAutoScrollEnabled = true
@@ -141,6 +146,8 @@ class MainActivity : AppCompatActivity() {
         establishButton = findViewById(R.id.establish_button)
         sendFileButton = findViewById(R.id.send_file_button)
         sessionStatusText = findViewById(R.id.session_status_text)
+        fileTransferProgress = findViewById(R.id.file_transfer_progress)
+        fileTransferStatus = findViewById(R.id.file_transfer_status)
         peerAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, mutableListOf<String>()).apply {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
@@ -227,6 +234,7 @@ class MainActivity : AppCompatActivity() {
             override fun onStopped() {
                 appendLog("mesh stopped")
                 updateEstablishButtonState()
+                hideFileTransferProgress()
             }
 
             override fun onDeliveryAck(messageID: String, recipientPeerID: String) {
@@ -243,6 +251,27 @@ class MainActivity : AppCompatActivity() {
 
             override fun onVerifyResponse(peerID: String, payload: ByteArray, timestampMs: Long) {
                 appendLog("verify response from ${peerID}")
+            }
+
+            override fun onTransferProgress(transferId: String, sent: Int, total: Int, completed: Boolean) {
+                runOnUiThread {
+                    if (total <= 0) {
+                        hideFileTransferProgress()
+                        return@runOnUiThread
+                    }
+                    fileTransferProgress.max = total
+                    fileTransferProgress.progress = sent.coerceAtMost(total)
+                    fileTransferProgress.visibility = android.view.View.VISIBLE
+                    fileTransferStatus.text = getString(R.string.label_file_transfer_status, sent, total)
+                    fileTransferStatus.visibility = android.view.View.VISIBLE
+                    transferHideRunnable?.let { transferHideHandler.removeCallbacks(it) }
+                    if (completed) {
+                        fileTransferStatus.text = getString(R.string.label_file_transfer_status, total, total)
+                        val runnable = Runnable { hideFileTransferProgress() }
+                        transferHideRunnable = runnable
+                        transferHideHandler.postDelayed(runnable, 1200L)
+                    }
+                }
             }
         })
 
@@ -563,6 +592,15 @@ class MainActivity : AppCompatActivity() {
             establishButton.isEnabled = meshManager.isStarted() && selectedPeerId.isNotEmpty()
             sendFileButton.isEnabled = meshManager.isStarted() && selectedPeerId.isNotEmpty() &&
                 meshManager.isEstablished(selectedPeerId)
+        }
+    }
+
+    private fun hideFileTransferProgress() {
+        runOnUiThread {
+            transferHideRunnable?.let { transferHideHandler.removeCallbacks(it) }
+            transferHideRunnable = null
+            fileTransferProgress.visibility = android.view.View.GONE
+            fileTransferStatus.visibility = android.view.View.GONE
         }
     }
 

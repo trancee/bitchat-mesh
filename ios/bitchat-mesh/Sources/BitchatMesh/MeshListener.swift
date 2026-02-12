@@ -41,6 +41,8 @@ public protocol MeshListener: AnyObject {
     func onPublicMessageReceived(from peerID: PeerID, nickname: String, content: String, timestamp: Date, messageID: String?)
     /// Called when a Noise payload is received.
     func onNoisePayloadReceived(from peerID: PeerID, type: NoisePayloadType, payload: Data, timestamp: Date)
+    /// Called when a file transfer makes progress.
+    func onTransferProgress(transferId: String, sent: Int, total: Int, completed: Bool)
 }
 
 public extension MeshListener {
@@ -63,4 +65,5 @@ public extension MeshListener {
     func onBluetoothStateUpdated(_ state: CBManagerState) {}
     func onPublicMessageReceived(from peerID: PeerID, nickname: String, content: String, timestamp: Date, messageID: String?) {}
     func onNoisePayloadReceived(from peerID: PeerID, type: NoisePayloadType, payload: Data, timestamp: Date) {}
+    func onTransferProgress(transferId: String, sent: Int, total: Int, completed: Bool) {}
 }
