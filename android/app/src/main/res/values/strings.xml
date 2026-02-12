@@ -8,6 +8,7 @@
     <string name="action_send">Send broadcast</string>
     <string name="action_send_direct">Send direct</string>
     <string name="action_establish">Establish session</string>
+    <string name="action_send_file">Send file</string>
     <string name="action_clear">Clear</string>
     <string name="action_autoscroll">Auto-scroll</string>
     <string name="hint_message">Write a message</string>

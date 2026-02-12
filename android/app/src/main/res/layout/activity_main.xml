@@ -140,15 +140,33 @@
         android:background="@drawable/bg_input"
         android:spinnerMode="dropdown" />
 
-    <Button
-        android:id="@+id/establish_button"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/action_establish"
         android:layout_marginTop="8dp"
-        android:textAllCaps="false"
-        android:backgroundTint="@color/mesh_surface_alt"
-        android:textColor="@color/mesh_text_primary" />
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/establish_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/action_establish"
+            android:textAllCaps="false"
+            android:backgroundTint="@color/mesh_surface_alt"
+            android:textColor="@color/mesh_text_primary" />
+
+        <Button
+            android:id="@+id/send_file_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:text="@string/action_send_file"
+            android:textAllCaps="false"
+            android:backgroundTint="@color/mesh_surface_alt"
+            android:textColor="@color/mesh_text_primary" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/session_status_text"

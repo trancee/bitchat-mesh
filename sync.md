@@ -32,3 +32,7 @@ There are platforms: android and ios in their respective folder
 ## Summary
 
 1. Add summary of the changes with versioning in the README.md of the platform (android / ios) folder
+
+## Notes
+
+Sending a file requires an established session; the new button will log and refuse sending if no session exists. Consider disabling the button in the UI unless a session is established and decide whether to trigger session establishment automatically when sending is attempted.

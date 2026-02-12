@@ -2,6 +2,7 @@ import SwiftUI
 import CoreBluetooth
 import BitchatMesh
 import UIKit
+import UniformTypeIdentifiers
 
 final class MeshSampleModel: ObservableObject, MeshListener {
     @Published var isRunning = false
@@ -46,6 +47,12 @@ final class MeshSampleModel: ObservableObject, MeshListener {
 
     var canEstablish: Bool {
         isRunning && !selectedPeerId.isEmpty
+    }
+
+    var canSendFile: Bool {
+        guard isRunning, !selectedPeerId.isEmpty else { return false }
+        let peer = PeerID(str: selectedPeerId)
+        return mesh.isEstablished(peer)
     }
 
     func start() {
@@ -105,6 +112,48 @@ final class MeshSampleModel: ObservableObject, MeshListener {
         let peer = PeerID(str: selectedPeerId)
         mesh.establish(peer)
         append("establishing session with \(peer.id)")
+    }
+
+    func sendFile(url: URL) {
+        guard !selectedPeerId.isEmpty else {
+            append("file transfer needs a selected peer")
+            return
+        }
+        let peer = PeerID(str: selectedPeerId)
+        guard mesh.isEstablished(peer) else {
+            append("file transfer requires an established session")
+            mesh.establish(peer)
+            return
+        }
+
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess { url.stopAccessingSecurityScopedResource() }
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let fileName = url.lastPathComponent.isEmpty ? "file" : url.lastPathComponent
+            let mimeType = resolveMimeType(for: url)
+            let packet = BitchatFilePacket(
+                fileName: fileName,
+                fileSize: UInt64(data.count),
+                mimeType: mimeType,
+                content: data
+            )
+            mesh.sendFilePrivate(packet, to: peer)
+            append("sending file to \(peer.id) (\(fileName), \(data.count) bytes)")
+        } catch {
+            append("failed to read file: \(error.localizedDescription)")
+        }
+    }
+
+    private func resolveMimeType(for url: URL) -> String {
+        let ext = url.pathExtension
+        if !ext.isEmpty, let type = UTType(filenameExtension: ext) {
+            return type.preferredMIMEType ?? "application/octet-stream"
+        }
+        return "application/octet-stream"
     }
 
     func clearLog() {
@@ -174,6 +223,10 @@ final class MeshSampleModel: ObservableObject, MeshListener {
                 self.logLines.removeFirst(self.logLines.count - self.maxLogLines)
             }
         }
+    }
+
+    func log(_ line: String) {
+        append(line)
     }
 
     private func updatePeers(_ peers: [PeerID]) {
@@ -377,6 +430,7 @@ final class MeshSampleModel: ObservableObject, MeshListener {
 struct ContentView: View {
     @ObservedObject var model: MeshSampleModel
     @State private var autoScroll = true
+    @State private var isFileImporterPresented = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -456,14 +510,23 @@ struct ContentView: View {
                         .stroke(MeshSamplePalette.inputBorder, lineWidth: 1)
                 )
 
-                Button("Establish session") {
-                    model.establishSelectedPeer()
-                }
-                .buttonStyle(.bordered)
-                .tint(MeshSamplePalette.surfaceAlt)
-                .foregroundColor(MeshSamplePalette.textPrimary)
-                .disabled(!model.canEstablish)
+                HStack(spacing: 12) {
+                    Button("Establish session") {
+                        model.establishSelectedPeer()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(MeshSamplePalette.surfaceAlt)
+                    .foregroundColor(MeshSamplePalette.textPrimary)
+                    .disabled(!model.canEstablish)
 
+                    Button("Send file") {
+                        isFileImporterPresented = true
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(MeshSamplePalette.surfaceAlt)
+                    .foregroundColor(MeshSamplePalette.textPrimary)
+                    .disabled(!model.canSendFile)
+                }
                 Text(model.sessionStatusText)
                     .font(.caption)
                     .foregroundColor(model.selectedPeerId.isEmpty ? MeshSamplePalette.textHint : MeshSamplePalette.textSecondary)
@@ -537,6 +600,20 @@ struct ContentView: View {
         }
         .padding(20)
         .background(MeshSamplePalette.surface)
+        .fileImporter(
+            isPresented: $isFileImporterPresented,
+            allowedContentTypes: [UTType.item],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    model.sendFile(url: url)
+                }
+            case .failure(let error):
+                model.log("file picker failed: \(error.localizedDescription)")
+            }
+        }
     }
 
     private var peerOptions: [PeerOption] {

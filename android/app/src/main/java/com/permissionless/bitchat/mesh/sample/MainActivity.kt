@@ -12,6 +12,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatSpinner
 import androidx.appcompat.widget.SwitchCompat
@@ -19,6 +20,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.bitchat.mesh.MeshListener
 import com.bitchat.mesh.MeshManager
+import com.bitchat.android.model.FileSharingManager
 import com.bitchat.android.model.BitchatMessage
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -36,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pendingDirectIndicator: TextView
     private lateinit var handshakePendingBadge: TextView
     private lateinit var establishButton: Button
+    private lateinit var sendFileButton: Button
     private lateinit var sessionStatusText: TextView
     private lateinit var peerIdSpinner: AppCompatSpinner
     private lateinit var peerAdapter: ArrayAdapter<String>
@@ -92,6 +95,28 @@ class MainActivity : AppCompatActivity() {
         "StoreForwardManager"
     )
     private val meshTagMarkers = meshLogTags.map { " $it:" }
+    private var pendingFilePeerId: String? = null
+    private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val peerId = pendingFilePeerId.orEmpty()
+        pendingFilePeerId = null
+        if (uri == null || peerId.isEmpty()) {
+            return@registerForActivityResult
+        }
+        if (!::meshManager.isInitialized) {
+            return@registerForActivityResult
+        }
+        if (!meshManager.isEstablished(peerId)) {
+            appendLog("file transfer requires an established session")
+            return@registerForActivityResult
+        }
+        val packet = FileSharingManager.createFilePacketFromUri(this, uri)
+        if (packet == null) {
+            appendLog("failed to prepare file for transfer")
+            return@registerForActivityResult
+        }
+        meshManager.sendFilePrivate(peerId, packet)
+        appendLog("sending file to $peerId (${packet.fileName}, ${packet.fileSize} bytes)")
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -114,6 +139,7 @@ class MainActivity : AppCompatActivity() {
         pendingDirectIndicator = findViewById(R.id.pending_direct_indicator)
         handshakePendingBadge = findViewById(R.id.handshake_pending_badge)
         establishButton = findViewById(R.id.establish_button)
+        sendFileButton = findViewById(R.id.send_file_button)
         sessionStatusText = findViewById(R.id.session_status_text)
         peerAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, mutableListOf<String>()).apply {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -164,6 +190,7 @@ class MainActivity : AppCompatActivity() {
                 establishedPeers.remove(peerID)
                 clearPendingDirectMessages(peerID, reason = "lost")
                 updateSessionStatus()
+                updateEstablishButtonState()
             }
 
             override fun onConnected(peerID: String) {
@@ -175,6 +202,7 @@ class MainActivity : AppCompatActivity() {
                 establishedPeers.remove(peerID)
                 clearPendingDirectMessages(peerID, reason = "disconnected")
                 updateSessionStatus()
+                updateEstablishButtonState()
             }
 
             override fun onEstablished(peerID: String) {
@@ -182,6 +210,7 @@ class MainActivity : AppCompatActivity() {
                 establishedPeers.add(peerID)
                 flushPendingDirectMessages(peerID)
                 updateSessionStatus()
+                updateEstablishButtonState()
             }
 
             override fun onRSSIUpdated(peerID: String, rssi: Int) {
@@ -276,6 +305,25 @@ class MainActivity : AppCompatActivity() {
             meshManager.establish(peerId)
             appendLog("establishing session with $peerId")
             updateSessionStatus()
+        }
+
+        sendFileButton.setOnClickListener {
+            if (!meshManager.isStarted()) {
+                appendLog("mesh is not started")
+                return@setOnClickListener
+            }
+            val peerId = peerIds.getOrNull(peerIdSpinner.selectedItemPosition).orEmpty()
+            if (peerId.isEmpty()) {
+                appendLog("file transfer needs a selected peer")
+                return@setOnClickListener
+            }
+            if (!meshManager.isEstablished(peerId)) {
+                appendLog("file transfer requires an established session")
+                meshManager.establish(peerId)
+                return@setOnClickListener
+            }
+            pendingFilePeerId = peerId
+            filePickerLauncher.launch(arrayOf("*/*"))
         }
 
         clearButton.setOnClickListener {
@@ -513,6 +561,8 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             val selectedPeerId = peerIds.getOrNull(peerIdSpinner.selectedItemPosition).orEmpty()
             establishButton.isEnabled = meshManager.isStarted() && selectedPeerId.isNotEmpty()
+            sendFileButton.isEnabled = meshManager.isStarted() && selectedPeerId.isNotEmpty() &&
+                meshManager.isEstablished(selectedPeerId)
         }
     }
 
