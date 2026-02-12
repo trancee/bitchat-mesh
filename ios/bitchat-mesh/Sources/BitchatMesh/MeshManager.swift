@@ -5,14 +5,14 @@ import Foundation
 public final class MeshManager {
     public weak var listener: MeshListener?
 
-    private let keychainManager: KeychainManagerProtocol
-    private let identityManager: SecureIdentityStateManager
-    private let bleService: BLEService
+    private let keychainManager: KeychainManagerProtocol?
+    private let identityManager: SecureIdentityStateManager?
+    private let transport: Transport
     private var hasStarted: Bool = false
     private var transferProgressObserverId: UUID?
 
     public var myPeerID: PeerID {
-        bleService.myPeerID
+        transport.myPeerID
     }
 
     public var myPeerId: String {
@@ -20,19 +20,37 @@ public final class MeshManager {
     }
 
     public var myNickname: String {
-        bleService.myNickname
+        transport.myNickname
     }
 
     public init(configuration: MeshConfiguration = .default) {
         let keychain = KeychainManager(configuration: configuration)
+        let identityManager = SecureIdentityStateManager(keychain)
         self.keychainManager = keychain
-        self.identityManager = SecureIdentityStateManager(keychain)
-        self.bleService = BLEService(
+        self.identityManager = identityManager
+        let service = BLEService(
             keychain: keychain,
             identityManager: identityManager
         )
-        self.bleService.delegate = self
-        VerificationService.shared.configure(with: bleService.getNoiseService())
+        self.transport = service
+        service.delegate = self
+        VerificationService.shared.configure(with: service.getNoiseService())
+        self.transferProgressObserverId = TransferProgressManager.shared.addObserver { [weak self] event in
+            self?.listener?.onTransferProgress(
+                transferId: event.transferId,
+                sent: event.sent,
+                total: event.total,
+                completed: event.completed
+            )
+        }
+    }
+
+    init(transport: Transport) {
+        self.keychainManager = nil
+        self.identityManager = nil
+        self.transport = transport
+        transport.delegate = self
+        VerificationService.shared.configure(with: transport.getNoiseService())
         self.transferProgressObserverId = TransferProgressManager.shared.addObserver { [weak self] event in
             self?.listener?.onTransferProgress(
                 transferId: event.transferId,
@@ -57,23 +75,23 @@ public final class MeshManager {
     /// Start BLE services and optionally set the local nickname.
     public func start(nickname: String? = nil) {
         if let nickname = nickname?.trimmingCharacters(in: .whitespacesAndNewlines), !nickname.isEmpty {
-            bleService.setNickname(nickname)
+            transport.setNickname(nickname)
         }
-        bleService.startServices()
+        transport.startServices()
         hasStarted = true
         listener?.onStarted()
     }
 
     /// Stop BLE services.
     public func stop() {
-        bleService.stopServices()
+        transport.stopServices()
         hasStarted = false
         listener?.onStopped()
     }
 
     /// Update the local nickname used in announces and messages.
     public func setNickname(_ nickname: String) {
-        bleService.setNickname(nickname)
+        transport.setNickname(nickname)
     }
 
     /// Return true once services have started and not yet stopped.
@@ -90,19 +108,19 @@ public final class MeshManager {
     /// - Note: `channel` is accepted for parity but is currently ignored on iOS.
     public func sendBroadcastMessage(_ content: String, mentions: [String] = [], channel: String? = nil) {
         _ = channel
-        bleService.sendMessage(content, mentions: mentions)
+        transport.sendMessage(content, mentions: mentions)
     }
 
     /// Send a private message to a peer.
     public func sendPrivateMessage(_ content: String, to peerID: PeerID, recipientNickname: String, messageID: String? = nil) {
         let id = messageID ?? UUID().uuidString
-        bleService.sendPrivateMessage(content, to: peerID, recipientNickname: recipientNickname, messageID: id)
+        transport.sendPrivateMessage(content, to: peerID, recipientNickname: recipientNickname, messageID: id)
         listener?.onSent(messageID: id, recipientPeerID: peerID.id)
     }
 
     /// Initiate the Noise handshake with a peer.
     public func establish(_ peerID: PeerID) {
-        bleService.triggerHandshake(with: peerID)
+        transport.triggerHandshake(with: peerID)
     }
 
     /// Alias for `establish(_:)`.
@@ -112,40 +130,40 @@ public final class MeshManager {
 
     /// Return true if a Noise session is established with the peer.
     public func isEstablished(_ peerID: PeerID) -> Bool {
-        bleService.getNoiseService().hasEstablishedSession(with: peerID)
+        transport.getNoiseService().hasEstablishedSession(with: peerID)
     }
 
     /// Send a file packet as a broadcast transfer.
     public func sendFileBroadcast(_ packet: BitchatFilePacket) {
         guard let payload = packet.encode() else { return }
         let transferId = payload.sha256Hex()
-        bleService.sendFileBroadcast(packet, transferId: transferId)
+        transport.sendFileBroadcast(packet, transferId: transferId)
     }
 
     /// Send a file packet directly to a peer.
     public func sendFilePrivate(_ packet: BitchatFilePacket, to peerID: PeerID) {
         guard let payload = packet.encode() else { return }
         let transferId = payload.sha256Hex()
-        bleService.sendFilePrivate(packet, to: peerID, transferId: transferId)
+        transport.sendFilePrivate(packet, to: peerID, transferId: transferId)
     }
 
     public func cancelTransfer(_ transferId: String) {
-        bleService.cancelTransfer(transferId)
+        transport.cancelTransfer(transferId)
     }
 
     /// Send a read receipt to a peer.
     public func sendReadReceipt(_ receipt: ReadReceipt, to peerID: PeerID) {
-        bleService.sendReadReceipt(receipt, to: peerID)
+        transport.sendReadReceipt(receipt, to: peerID)
     }
 
     /// Send a delivery acknowledgment to a peer.
     public func sendDeliveryAck(for messageID: String, to peerID: PeerID) {
-        bleService.sendDeliveryAck(for: messageID, to: peerID)
+        transport.sendDeliveryAck(for: messageID, to: peerID)
     }
 
     /// Current peer nickname map as known by the mesh.
     public func peerNicknames() -> [PeerID: String] {
-        bleService.getPeerNicknames()
+        transport.getPeerNicknames()
     }
 
     /// Current peer RSSI map, if available.
