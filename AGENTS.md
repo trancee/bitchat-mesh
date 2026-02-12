@@ -5,6 +5,10 @@
 This repository contains cross-platform Bluetooth mesh libraries for BitChat.
 Use this file to keep contributor notes consistent for agents and automation.
 
+## General rules
+
+- Never make changes in the upstream repositories (`bitchat` and `bitchat-android`); only sync from them.
+
 ## Sync process
 
 ### Android

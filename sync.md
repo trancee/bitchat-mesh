@@ -9,6 +9,7 @@ There are platforms: android and ios in their respective folder
 - `bitchat-android` is the Android implementation and is synced into the `android` folder with only the relevant parts for the BitChat mesh network to function (no UI).
 
 1. **ALWAYS checkout `main` branch and pull latest changes** (this is mandatory for `bitchat` and `bitchat-android` upstream repositories)
+2. **NEVER make any changes in the upstream repositories** (`bitchat` and `bitchat-android`); only sync from them
 
 ## Process
 
@@ -21,6 +22,7 @@ There are platforms: android and ios in their respective folder
 5. Wire real events from the mesh service:
 - Add `didEstablishSession` and `didUpdatePeerRSSI` to `BluetoothMeshDelegate`, emitted on key-exchange completion and RSSI updates in `BluetoothMeshService.kt`
 - Forward those to `MeshListener` in `MeshManager.kt`
+6. Ensure Android uses the debug BLE service UUID for testing builds and the release UUID for release builds
 
 ## Test
 
