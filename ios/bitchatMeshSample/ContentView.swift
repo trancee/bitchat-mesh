@@ -14,6 +14,8 @@ final class MeshSampleModel: ObservableObject, MeshListener {
     @Published var selectedPeerId = ""
     @Published var pendingDirectCountByPeer: [String: Int] = [:]
     @Published var fileTransferProgress: TransferProgressState?
+    @Published var lastIncomingFile: IncomingFileState?
+    @Published var currentOutgoingTransferId: String?
 
     private let mesh: MeshManager
     private let dateFormatter: DateFormatter
@@ -23,6 +25,7 @@ final class MeshSampleModel: ObservableObject, MeshListener {
     private let pendingMaxAttempts = 3
     private var pendingDirectMessages: [String: [PendingDirectMessage]] = [:]
     private var pendingRetryTimers: [String: Timer] = [:]
+    private var transferInfoById: [String: TransferInfo] = [:]
 
     init() {
         mesh = MeshManager()
@@ -56,6 +59,10 @@ final class MeshSampleModel: ObservableObject, MeshListener {
         return mesh.isEstablished(peer)
     }
 
+    var isSendingFile: Bool {
+        currentOutgoingTransferId != nil
+    }
+
     func start() {
         guard !isRunning else { return }
         mesh.start(nickname: defaultNickname())
@@ -72,6 +79,8 @@ final class MeshSampleModel: ObservableObject, MeshListener {
         peers = []
         selectedPeerId = ""
         fileTransferProgress = nil
+        lastIncomingFile = nil
+        currentOutgoingTransferId = nil
         pendingDirectMessages.removeAll()
         pendingRetryTimers.values.forEach { $0.invalidate() }
         pendingRetryTimers.removeAll()
@@ -143,11 +152,25 @@ final class MeshSampleModel: ObservableObject, MeshListener {
                 mimeType: mimeType,
                 content: data
             )
+            if let payload = packet.encode() {
+                let transferId = payload.sha256Hex()
+                transferInfoById[transferId] = TransferInfo(fileName: fileName, fileSize: data.count)
+                currentOutgoingTransferId = transferId
+            }
             mesh.sendFilePrivate(packet, to: peer)
             append("sending file to \(peer.id) (\(fileName), \(data.count) bytes)")
         } catch {
             append("failed to read file: \(error.localizedDescription)")
         }
+    }
+
+    func cancelCurrentTransfer() {
+        guard let transferId = currentOutgoingTransferId else { return }
+        mesh.cancelTransfer(transferId)
+        transferInfoById.removeValue(forKey: transferId)
+        currentOutgoingTransferId = nil
+        fileTransferProgress = nil
+        append("cancelled transfer \(transferId)")
     }
 
     private func resolveMimeType(for url: URL) -> String {
@@ -415,14 +438,21 @@ final class MeshSampleModel: ObservableObject, MeshListener {
     func onTransferProgress(transferId: String, sent: Int, total: Int, completed: Bool) {
         DispatchQueue.main.async {
             let safeTotal = max(total, 1)
+            let info = self.transferInfoById[transferId]
             self.fileTransferProgress = TransferProgressState(
                 transferId: transferId,
                 sent: min(sent, safeTotal),
                 total: safeTotal,
-                completed: completed
+                completed: completed,
+                fileName: info?.fileName,
+                fileSize: info?.fileSize
             )
             if completed {
                 let currentId = transferId
+                self.transferInfoById.removeValue(forKey: transferId)
+                if transferId == self.currentOutgoingTransferId {
+                    self.currentOutgoingTransferId = nil
+                }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                     if self.fileTransferProgress?.transferId == currentId {
                         self.fileTransferProgress = nil
@@ -430,6 +460,20 @@ final class MeshSampleModel: ObservableObject, MeshListener {
                 }
             }
         }
+    }
+
+    func onFileReceived(peerID: PeerID, fileName: String, fileSize: Int, mimeType: String, localURL: URL) {
+        DispatchQueue.main.async {
+            self.lastIncomingFile = IncomingFileState(
+                peerID: peerID.id,
+                fileName: fileName,
+                fileSize: fileSize
+            )
+        }
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        let sizeLabel = formatter.string(fromByteCount: Int64(fileSize))
+        append("incoming file from \(peerID.id): \(fileName) (\(sizeLabel))")
     }
 
     private final class PendingDirectMessage {
@@ -453,6 +497,8 @@ final class MeshSampleModel: ObservableObject, MeshListener {
         let sent: Int
         let total: Int
         let completed: Bool
+        let fileName: String?
+        let fileSize: Int?
 
         var fraction: Double {
             guard total > 0 else { return 0 }
@@ -460,8 +506,32 @@ final class MeshSampleModel: ObservableObject, MeshListener {
         }
 
         var label: String {
-            "File transfer: \(sent)/\(total)"
+            if let name = fileName, let size = fileSize {
+                let formatter = ByteCountFormatter()
+                formatter.countStyle = .file
+                let sizeLabel = formatter.string(fromByteCount: Int64(size))
+                return "File transfer: \(name) (\(sizeLabel)) \(sent)/\(total)"
+            }
+            return "File transfer: \(sent)/\(total)"
         }
+    }
+
+    struct IncomingFileState {
+        let peerID: String
+        let fileName: String
+        let fileSize: Int
+
+        var label: String {
+            let formatter = ByteCountFormatter()
+            formatter.countStyle = .file
+            let sizeLabel = formatter.string(fromByteCount: Int64(fileSize))
+            return "Incoming file: \(fileName) (\(sizeLabel)) from \(peerID)"
+        }
+    }
+
+    private struct TransferInfo {
+        let fileName: String
+        let fileSize: Int
     }
 }
 
@@ -557,13 +627,17 @@ struct ContentView: View {
                     .foregroundColor(MeshSamplePalette.textPrimary)
                     .disabled(!model.canEstablish)
 
-                    Button("Send file") {
-                        isFileImporterPresented = true
+                    Button(model.isSendingFile ? "Cancel transfer" : "Send file") {
+                        if model.isSendingFile {
+                            model.cancelCurrentTransfer()
+                        } else {
+                            isFileImporterPresented = true
+                        }
                     }
                     .buttonStyle(.bordered)
                     .tint(MeshSamplePalette.surfaceAlt)
                     .foregroundColor(MeshSamplePalette.textPrimary)
-                    .disabled(!model.canSendFile)
+                    .disabled(model.isSendingFile ? false : !model.canSendFile)
                 }
                 Text(model.sessionStatusText)
                     .font(.caption)
@@ -573,6 +647,12 @@ struct ContentView: View {
                     ProgressView(value: progress.fraction)
                         .tint(MeshSamplePalette.primary)
                     Text(progress.label)
+                        .font(.caption)
+                        .foregroundColor(MeshSamplePalette.textSecondary)
+                }
+
+                if let incoming = model.lastIncomingFile {
+                    Text(incoming.label)
                         .font(.caption)
                         .foregroundColor(MeshSamplePalette.textSecondary)
                 }

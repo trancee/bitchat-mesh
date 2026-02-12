@@ -43,6 +43,8 @@ public protocol MeshListener: AnyObject {
     func onNoisePayloadReceived(from peerID: PeerID, type: NoisePayloadType, payload: Data, timestamp: Date)
     /// Called when a file transfer makes progress.
     func onTransferProgress(transferId: String, sent: Int, total: Int, completed: Bool)
+    /// Called when a file transfer is received.
+    func onFileReceived(peerID: PeerID, fileName: String, fileSize: Int, mimeType: String, localURL: URL)
 }
 
 public extension MeshListener {
@@ -66,4 +68,5 @@ public extension MeshListener {
     func onPublicMessageReceived(from peerID: PeerID, nickname: String, content: String, timestamp: Date, messageID: String?) {}
     func onNoisePayloadReceived(from peerID: PeerID, type: NoisePayloadType, payload: Data, timestamp: Date) {}
     func onTransferProgress(transferId: String, sent: Int, total: Int, completed: Bool) {}
+    func onFileReceived(peerID: PeerID, fileName: String, fileSize: Int, mimeType: String, localURL: URL) {}
 }

@@ -195,6 +195,15 @@
         android:textColor="@color/mesh_text_secondary"
         android:visibility="gone" />
 
+    <TextView
+        android:id="@+id/incoming_file_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:textSize="12sp"
+        android:textColor="@color/mesh_text_secondary"
+        android:visibility="gone" />
+
     <Button
         android:id="@+id/send_direct_button"
         android:layout_width="match_parent"

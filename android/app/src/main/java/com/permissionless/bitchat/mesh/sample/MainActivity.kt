@@ -19,10 +19,12 @@ import androidx.appcompat.widget.AppCompatSpinner
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.bitchat.android.features.file.FileUtils
 import com.bitchat.mesh.MeshListener
 import com.bitchat.mesh.MeshManager
 import com.bitchat.android.model.FileSharingManager
 import com.bitchat.android.model.BitchatMessage
+import java.security.MessageDigest
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.ArrayDeque
@@ -43,6 +45,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sessionStatusText: TextView
     private lateinit var fileTransferProgress: ProgressBar
     private lateinit var fileTransferStatus: TextView
+    private lateinit var incomingFileStatus: TextView
     private lateinit var peerIdSpinner: AppCompatSpinner
     private lateinit var peerAdapter: ArrayAdapter<String>
     private val peerIds: MutableList<String> = mutableListOf()
@@ -60,6 +63,8 @@ class MainActivity : AppCompatActivity() {
     private val pendingMaxAttempts = 3
     private val transferHideHandler = Handler(Looper.getMainLooper())
     private var transferHideRunnable: Runnable? = null
+    private val transferInfoById: MutableMap<String, TransferInfo> = mutableMapOf()
+    private var currentOutgoingTransferId: String? = null
     private val logLines: ArrayDeque<String> = ArrayDeque()
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     private var isAutoScrollEnabled = true
@@ -119,6 +124,15 @@ class MainActivity : AppCompatActivity() {
             appendLog("failed to prepare file for transfer")
             return@registerForActivityResult
         }
+        val payload = packet.encode()
+        if (payload == null) {
+            appendLog("failed to encode file for transfer")
+            return@registerForActivityResult
+        }
+        val transferId = sha256Hex(payload)
+        transferInfoById[transferId] = TransferInfo(packet.fileName, packet.fileSize)
+        currentOutgoingTransferId = transferId
+        updateEstablishButtonState()
         meshManager.sendFilePrivate(peerId, packet)
         appendLog("sending file to $peerId (${packet.fileName}, ${packet.fileSize} bytes)")
     }
@@ -148,6 +162,7 @@ class MainActivity : AppCompatActivity() {
         sessionStatusText = findViewById(R.id.session_status_text)
         fileTransferProgress = findViewById(R.id.file_transfer_progress)
         fileTransferStatus = findViewById(R.id.file_transfer_status)
+        incomingFileStatus = findViewById(R.id.incoming_file_status)
         peerAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, mutableListOf<String>()).apply {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
@@ -235,6 +250,7 @@ class MainActivity : AppCompatActivity() {
                 appendLog("mesh stopped")
                 updateEstablishButtonState()
                 hideFileTransferProgress()
+                hideIncomingFileStatus()
             }
 
             override fun onDeliveryAck(messageID: String, recipientPeerID: String) {
@@ -259,19 +275,50 @@ class MainActivity : AppCompatActivity() {
                         hideFileTransferProgress()
                         return@runOnUiThread
                     }
+                    val transferInfo = transferInfoById[transferId]
                     fileTransferProgress.max = total
                     fileTransferProgress.progress = sent.coerceAtMost(total)
                     fileTransferProgress.visibility = android.view.View.VISIBLE
-                    fileTransferStatus.text = getString(R.string.label_file_transfer_status, sent, total)
+                    fileTransferStatus.text = if (transferInfo != null) {
+                        getString(
+                            R.string.label_file_transfer_status_named,
+                            transferInfo.fileName,
+                            FileUtils.formatFileSize(transferInfo.fileSize),
+                            sent,
+                            total
+                        )
+                    } else {
+                        getString(R.string.label_file_transfer_status, sent, total)
+                    }
                     fileTransferStatus.visibility = android.view.View.VISIBLE
                     transferHideRunnable?.let { transferHideHandler.removeCallbacks(it) }
                     if (completed) {
-                        fileTransferStatus.text = getString(R.string.label_file_transfer_status, total, total)
+                        if (transferInfo == null) {
+                            fileTransferStatus.text = getString(R.string.label_file_transfer_status, total, total)
+                        }
+                        transferInfoById.remove(transferId)
+                        if (transferId == currentOutgoingTransferId) {
+                            currentOutgoingTransferId = null
+                            updateEstablishButtonState()
+                        }
                         val runnable = Runnable { hideFileTransferProgress() }
                         transferHideRunnable = runnable
                         transferHideHandler.postDelayed(runnable, 1200L)
                     }
                 }
+            }
+
+            override fun onFileReceived(peerID: String, fileName: String, fileSize: Long, mimeType: String, localPath: String) {
+                runOnUiThread {
+                    incomingFileStatus.text = getString(
+                        R.string.label_incoming_file_status,
+                        fileName,
+                        FileUtils.formatFileSize(fileSize),
+                        peerID
+                    )
+                    incomingFileStatus.visibility = android.view.View.VISIBLE
+                }
+                appendLog("incoming file from $peerID: $fileName (${FileUtils.formatFileSize(fileSize)})")
             }
         })
 
@@ -337,6 +384,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         sendFileButton.setOnClickListener {
+            if (currentOutgoingTransferId != null) {
+                val transferId = currentOutgoingTransferId
+                if (transferId != null) {
+                    if (meshManager.cancelFileTransfer(transferId)) {
+                        appendLog("cancelled transfer $transferId")
+                    }
+                    transferInfoById.remove(transferId)
+                }
+                currentOutgoingTransferId = null
+                hideFileTransferProgress()
+                updateEstablishButtonState()
+                return@setOnClickListener
+            }
             if (!meshManager.isStarted()) {
                 appendLog("mesh is not started")
                 return@setOnClickListener
@@ -590,8 +650,17 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             val selectedPeerId = peerIds.getOrNull(peerIdSpinner.selectedItemPosition).orEmpty()
             establishButton.isEnabled = meshManager.isStarted() && selectedPeerId.isNotEmpty()
-            sendFileButton.isEnabled = meshManager.isStarted() && selectedPeerId.isNotEmpty() &&
-                meshManager.isEstablished(selectedPeerId)
+            val isSendingFile = currentOutgoingTransferId != null
+            sendFileButton.isEnabled = if (isSendingFile) {
+                true
+            } else {
+                meshManager.isStarted() && selectedPeerId.isNotEmpty() && meshManager.isEstablished(selectedPeerId)
+            }
+            sendFileButton.text = if (isSendingFile) {
+                getString(R.string.action_cancel_transfer)
+            } else {
+                getString(R.string.action_send_file)
+            }
         }
     }
 
@@ -603,6 +672,22 @@ class MainActivity : AppCompatActivity() {
             fileTransferStatus.visibility = android.view.View.GONE
         }
     }
+
+    private fun hideIncomingFileStatus() {
+        runOnUiThread {
+            incomingFileStatus.visibility = android.view.View.GONE
+        }
+    }
+
+    private fun sha256Hex(bytes: ByteArray): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    private data class TransferInfo(
+        val fileName: String,
+        val fileSize: Long
+    )
 
     private fun queuePendingDirectMessage(peerId: String, nickname: String, content: String) {
         val queue = pendingDirectMessages.getOrPut(peerId) { ArrayDeque() }

@@ -1260,6 +1260,13 @@ final class BLEService: NSObject {
 
         notifyUI { [weak self] in
             self?.delegate?.didReceiveMessage(message)
+            self?.delegate?.didReceiveFileTransfer(
+                peerID: peerID,
+                fileName: fileName,
+                fileSize: filePacket.content.count,
+                mimeType: filePacket.mimeType ?? mime.mimeString,
+                localURL: destination
+            )
         }
     }
     

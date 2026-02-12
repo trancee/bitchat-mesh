@@ -18,7 +18,7 @@ extension Data {
         return self.map { String(format: "%02x", $0) }.joined()
     }
 
-    func sha256Hex() -> String {
+    public func sha256Hex() -> String {
         let digest = SHA256.hash(data: self)
         return digest.map { String(format: "%02x", $0) }.joined()
     }

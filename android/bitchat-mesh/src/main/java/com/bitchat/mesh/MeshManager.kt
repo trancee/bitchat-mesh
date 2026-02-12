@@ -84,6 +84,10 @@ class MeshManager(private val context: Context) {
         service?.sendFilePrivate(recipientPeerID, file)
     }
 
+    fun cancelFileTransfer(transferId: String): Boolean {
+        return service?.cancelFileTransfer(transferId) == true
+    }
+
     fun peerNicknames(): Map<String, String> = service?.getPeerNicknames().orEmpty()
 
     fun peerRssi(): Map<String, Int> = service?.getPeerRSSI().orEmpty()
@@ -141,6 +145,10 @@ class MeshManager(private val context: Context) {
 
             override fun didReceiveVerifyResponse(peerID: String, payload: ByteArray, timestampMs: Long) {
                 listener?.onVerifyResponse(peerID, payload, timestampMs)
+            }
+
+            override fun didReceiveFileTransfer(peerID: String, fileName: String, fileSize: Long, mimeType: String, localPath: String) {
+                listener?.onFileReceived(peerID, fileName, fileSize, mimeType, localPath)
             }
 
             override fun decryptChannelMessage(encryptedContent: ByteArray, channel: String): String? {

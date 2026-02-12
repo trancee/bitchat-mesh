@@ -122,6 +122,7 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                         )
 
                         if (BuildConfig.DEBUG) Log.d(TAG, "📄 Saved encrypted incoming file to $savedPath (msgId=$uniqueMsgId)")
+                        delegate?.onFileReceived(peerID, file.fileName, file.fileSize, file.mimeType, savedPath)
                         delegate?.onMessageReceived(message)
 
                         // Send delivery ACK with generated message ID
@@ -399,6 +400,7 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                     timestamp = Date(packet.timestamp.toLong())
                 )
                 if (BuildConfig.DEBUG) Log.d(TAG, "📄 Saved incoming file to $savedPath")
+                delegate?.onFileReceived(peerID, file.fileName, file.fileSize, file.mimeType, savedPath)
                 delegate?.onMessageReceived(message)
                 return
             } else if (isFileTransfer) {
@@ -448,6 +450,7 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                     recipientNickname = delegate?.getMyNickname()
                 )
                 if (BuildConfig.DEBUG) Log.d(TAG, "📄 Saved incoming file to $savedPath")
+                delegate?.onFileReceived(peerID, file.fileName, file.fileSize, file.mimeType, savedPath)
                 delegate?.onMessageReceived(message)
                 return
             } else if (isFileTransfer) {
@@ -572,4 +575,5 @@ interface MessageHandlerDelegate {
     fun onReadReceiptReceived(messageID: String, peerID: String)
     fun onVerifyChallengeReceived(peerID: String, payload: ByteArray, timestampMs: Long)
     fun onVerifyResponseReceived(peerID: String, payload: ByteArray, timestampMs: Long)
+    fun onFileReceived(peerID: String, fileName: String, fileSize: Long, mimeType: String, localPath: String)
 }

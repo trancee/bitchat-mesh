@@ -176,6 +176,7 @@ protocol BitchatDelegate: AnyObject {
     // Bluetooth state updates for user notifications
     func didUpdateBluetoothState(_ state: CBManagerState)
     func didReceivePublicMessage(from peerID: PeerID, nickname: String, content: String, timestamp: Date, messageID: String?)
+    func didReceiveFileTransfer(peerID: PeerID, fileName: String, fileSize: Int, mimeType: String, localURL: URL)
 }
 
 // Provide default implementation to make it effectively optional
@@ -189,6 +190,10 @@ extension BitchatDelegate {
     }
 
     func didReceivePublicMessage(from peerID: PeerID, nickname: String, content: String, timestamp: Date, messageID: String?) {
+        // Default empty implementation
+    }
+
+    func didReceiveFileTransfer(peerID: PeerID, fileName: String, fileSize: Int, mimeType: String, localURL: URL) {
         // Default empty implementation
     }
 }

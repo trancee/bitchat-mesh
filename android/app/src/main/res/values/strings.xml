@@ -9,6 +9,7 @@
     <string name="action_send_direct">Send direct</string>
     <string name="action_establish">Establish session</string>
     <string name="action_send_file">Send file</string>
+    <string name="action_cancel_transfer">Cancel transfer</string>
     <string name="action_clear">Clear</string>
     <string name="action_autoscroll">Auto-scroll</string>
     <string name="hint_message">Write a message</string>
@@ -20,6 +21,8 @@
     <string name="label_handshake_pending">Handshake pending</string>
     <string name="label_session_status">Session: %1$s</string>
     <string name="label_file_transfer_status">File transfer: %1$d/%2$d</string>
+    <string name="label_file_transfer_status_named">File transfer: %1$s (%2$s) %3$d/%4$d</string>
+    <string name="label_incoming_file_status">Incoming file: %1$s (%2$s) from %3$s</string>
     <string name="status_session_established">established</string>
     <string name="status_session_not_established">not established</string>
     <string name="status_session_no_peer">no peer</string>

@@ -387,6 +387,10 @@ class BluetoothMeshService(private val context: Context) {
             override fun onVerifyResponseReceived(peerID: String, payload: ByteArray, timestampMs: Long) {
                 delegate?.didReceiveVerifyResponse(peerID, payload, timestampMs)
             }
+
+            override fun onFileReceived(peerID: String, fileName: String, fileSize: Long, mimeType: String, localPath: String) {
+                delegate?.didReceiveFileTransfer(peerID, fileName, fileSize, mimeType, localPath)
+            }
         }
         
         // PacketProcessor delegates
@@ -1345,6 +1349,7 @@ interface BluetoothMeshDelegate {
     fun didReceiveReadReceipt(messageID: String, recipientPeerID: String)
     fun didReceiveVerifyChallenge(peerID: String, payload: ByteArray, timestampMs: Long)
     fun didReceiveVerifyResponse(peerID: String, payload: ByteArray, timestampMs: Long)
+    fun didReceiveFileTransfer(peerID: String, fileName: String, fileSize: Long, mimeType: String, localPath: String)
     fun decryptChannelMessage(encryptedContent: ByteArray, channel: String): String?
     fun getNickname(): String?
     fun isFavorite(peerID: String): Boolean

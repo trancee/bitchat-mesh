@@ -129,6 +129,10 @@ public final class MeshManager {
         bleService.sendFilePrivate(packet, to: peerID, transferId: transferId)
     }
 
+    public func cancelTransfer(_ transferId: String) {
+        bleService.cancelTransfer(transferId)
+    }
+
     /// Send a read receipt to a peer.
     public func sendReadReceipt(_ receipt: ReadReceipt, to peerID: PeerID) {
         bleService.sendReadReceipt(receipt, to: peerID)
@@ -200,5 +204,9 @@ extension MeshManager: BitchatDelegate {
 
     func didReceivePublicMessage(from peerID: PeerID, nickname: String, content: String, timestamp: Date, messageID: String?) {
         listener?.onPublicMessageReceived(from: peerID, nickname: nickname, content: content, timestamp: timestamp, messageID: messageID)
+    }
+
+    func didReceiveFileTransfer(peerID: PeerID, fileName: String, fileSize: Int, mimeType: String, localURL: URL) {
+        listener?.onFileReceived(peerID: peerID, fileName: fileName, fileSize: fileSize, mimeType: mimeType, localURL: localURL)
     }
 }
