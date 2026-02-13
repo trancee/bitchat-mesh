@@ -24,7 +24,10 @@ object TransferProgressManager {
     fun complete(id: String, total: Int) { emit(id, total, total, true) }
 
     private fun emit(id: String, sent: Int, total: Int, done: Boolean) {
-        scope.launch { _events.emit(TransferProgressEvent(id, sent, total, done)) }
+        val event = TransferProgressEvent(id, sent, total, done)
+        if (!_events.tryEmit(event)) {
+            scope.launch { _events.emit(event) }
+        }
     }
 }
 
