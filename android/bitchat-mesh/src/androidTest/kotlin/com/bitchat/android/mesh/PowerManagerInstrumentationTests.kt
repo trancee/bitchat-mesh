@@ -20,6 +20,7 @@ class PowerManagerInstrumentationTests {
     @Before
     fun setUp() {
         powerManager = PowerManager(ApplicationProvider.getApplicationContext())
+        powerManager.stop()
     }
 
     @After
@@ -32,6 +33,7 @@ class PowerManagerInstrumentationTests {
         setPrivateField("batteryLevel", 90)
         setPrivateField("isCharging", true)
         setPrivateField("isAppInBackground", false)
+        setPrivateField("currentMode", PowerManager.PowerMode.POWER_SAVER)
 
         updatePowerMode()
 
