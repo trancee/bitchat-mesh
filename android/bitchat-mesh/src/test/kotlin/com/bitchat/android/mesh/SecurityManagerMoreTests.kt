@@ -1,6 +1,7 @@
 package com.bitchat.android.mesh
 
 import com.bitchat.android.crypto.EncryptionService
+import com.bitchat.android.model.IdentityAnnouncement
 import com.bitchat.android.model.RoutedPacket
 import com.bitchat.android.protocol.BitchatPacket
 import com.bitchat.android.protocol.MessageType
@@ -132,6 +133,86 @@ class SecurityManagerMoreTests {
         )
 
         assertTrue(!manager.validatePacket(packet, "peer"))
+    }
+
+    @Test
+    fun validatePacketSkipsOwnPeer() {
+        val manager = SecurityManager(mock<EncryptionService>(), MY_PEER_ID)
+        val packet = BitchatPacket(
+            type = MessageType.NOISE_HANDSHAKE.value,
+            senderID = hexToBytes("aaaa"),
+            recipientID = null,
+            timestamp = 10uL,
+            payload = byteArrayOf(0x01),
+            signature = null,
+            ttl = 1u
+        )
+
+        assertTrue(!manager.validatePacket(packet, MY_PEER_ID))
+    }
+
+    @Test
+    fun validatePacketAllowsDuplicateAnnounceWithMaxTtl() {
+        val encryption = mock<EncryptionService>()
+        whenever(encryption.verifyEd25519Signature(any(), any(), any())).thenReturn(true)
+        val manager = SecurityManager(encryption, MY_PEER_ID)
+
+        val announcement = IdentityAnnouncement(
+            nickname = "Alice",
+            noisePublicKey = ByteArray(32) { 1 },
+            signingPublicKey = ByteArray(32) { 2 }
+        )
+        val packet = BitchatPacket(
+            type = MessageType.ANNOUNCE.value,
+            senderID = hexToBytes("bbbbbbbbbbbbbbbb"),
+            recipientID = null,
+            timestamp = 99uL,
+            payload = announcement.encode()!!,
+            signature = ByteArray(64) { 3 },
+            ttl = AppConstants.MESSAGE_TTL_HOPS
+        )
+
+        assertTrue(manager.validatePacket(packet, "peer"))
+        assertTrue(manager.validatePacket(packet, "peer"))
+    }
+
+    @Test
+    fun getDebugInfoIncludesKeyExchangeHistory() = runBlocking {
+        val encryption = mock<EncryptionService>()
+        whenever(encryption.processHandshakeMessage(any(), any())).thenReturn(null)
+        val manager = SecurityManager(encryption, MY_PEER_ID)
+
+        val packet = BitchatPacket(
+            type = MessageType.NOISE_HANDSHAKE.value,
+            senderID = hexToBytes("cccccccccccccccc"),
+            recipientID = hexToBytes(MY_PEER_ID),
+            timestamp = System.currentTimeMillis().toULong(),
+            payload = byteArrayOf(0x01, 0x02),
+            ttl = AppConstants.MESSAGE_TTL_HOPS
+        )
+
+        assertTrue(manager.handleNoiseHandshake(RoutedPacket(packet, peerID = "peer")))
+        val debugInfo = manager.getDebugInfo()
+        assertTrue(debugInfo.contains("Key Exchange History:"))
+    }
+
+    @Test
+    fun clearAllDataResetsDebugCounts() {
+        val manager = SecurityManager(mock<EncryptionService>(), MY_PEER_ID)
+        val packet = BitchatPacket(
+            type = MessageType.NOISE_HANDSHAKE.value,
+            senderID = hexToBytes("dddddddddddddddd"),
+            recipientID = null,
+            timestamp = 11uL,
+            payload = byteArrayOf(0x01),
+            signature = null,
+            ttl = 1u
+        )
+
+        assertTrue(manager.validatePacket(packet, "peer"))
+        assertTrue(manager.getDebugInfo().contains("Processed Messages: 1"))
+        manager.clearAllData()
+        assertTrue(manager.getDebugInfo().contains("Processed Messages: 0"))
     }
 
     @Test
