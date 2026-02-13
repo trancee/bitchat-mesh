@@ -1,6 +1,6 @@
 ---
 description: Sync the relevant changes from the upstream repository and remove unnecessary files
-allowed-tools: [Bash, Read, Write, Edit, MultiEdit, Glob, Grep, Git, Gradle, Swift, Find, Rsync, TodoWrite]
+allowed-tools: [Bash, Read, Write, Edit, MultiEdit, Glob, Grep, Git, Gradle, Swift, Find, Rsync, Python3, TodoWrite]
 ---
 
 There are platforms: android and ios in their respective folder

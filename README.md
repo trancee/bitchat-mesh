@@ -36,6 +36,13 @@ Artifacts land in:
 android/bitchat-mesh/build/outputs/aar
 ```
 
+Run code coverage:
+
+```bash
+cd android
+./gradlew :bitchat-mesh:jacocoTestReport
+```
+
 ### iOS (Swift Package)
 
 Platform notes:
