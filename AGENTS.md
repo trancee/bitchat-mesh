@@ -8,6 +8,7 @@ Use this file to keep contributor notes consistent for agents and automation.
 ## General rules
 
 - Never make changes in the upstream repositories (`bitchat` and `bitchat-android`); only sync from them.
+- When making changes to the source code, always add or update the tests to make sure it works as expected.
 
 ## Sync process
 

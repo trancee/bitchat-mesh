@@ -117,6 +117,15 @@ class BluetoothPacketBroadcaster(
         characteristic: BluetoothGattCharacteristic?
     ) {
         val packet = routed.packet
+        val route = packet.route
+        val senderIdHex = packet.senderID.toHexString()
+        val firstHopPeerId = if (!route.isNullOrEmpty()) route.first().toHexString() else null
+        val isSourceRoutedFromSelf = !route.isNullOrEmpty() && senderIdHex == myPeerID
+        val progressTag = if (isSourceRoutedFromSelf && firstHopPeerId != null) "routed" else "broadcast"
+        if (!route.isNullOrEmpty() && !isSourceRoutedFromSelf) {
+            Log.w(TAG, "Source-routed packet broadcast requested by non-sender; dropping")
+            return
+        }
         val isFile = packet.type == MessageType.FILE_TRANSFER.value
         if (isFile) {
             if (BuildConfig.DEBUG) Log.d(TAG, "📤 Broadcasting FILE_TRANSFER: ${packet.payload.size} bytes")
@@ -141,6 +150,9 @@ class BluetoothPacketBroadcaster(
                 if (BuildConfig.DEBUG) Log.d(TAG, "Fragmenting packet into ${fragments.size} fragments")
                 if (transferId != null) {
                     TransferProgressManager.start(transferId, fragments.size)
+                    if (BuildConfig.DEBUG) {
+                        Log.d(TAG, "Transfer start [$progressTag] id=${transferId.take(8)} total=${fragments.size}")
+                    }
                 }
                 val job = connectionScope.launch {
                     var sent = 0
@@ -148,13 +160,26 @@ class BluetoothPacketBroadcaster(
                         if (!isActive) return@launch
                         // If cancelled, stop sending remaining fragments
                         if (transferId != null && transferJobs[transferId]?.isCancelled == true) return@launch
-                        broadcastSinglePacket(RoutedPacket(fragment, transferId = transferId), gattServer, characteristic)
+                        val routedFragment = RoutedPacket(fragment, transferId = transferId)
+                        if (isSourceRoutedFromSelf && firstHopPeerId != null) {
+                            sendPacketToPeer(routedFragment, firstHopPeerId, gattServer, characteristic)
+                        } else {
+                            broadcastSinglePacket(routedFragment, gattServer, characteristic)
+                        }
                         // 20ms delay between fragments
                         delay(20)
+                        sent += 1
                         if (transferId != null) {
-                            sent += 1
                             TransferProgressManager.progress(transferId, sent, fragments.size)
-                            if (sent == fragments.size) TransferProgressManager.complete(transferId, fragments.size)
+                            if (BuildConfig.DEBUG) {
+                                Log.d(TAG, "Transfer progress [$progressTag] id=${transferId.take(8)} ${sent}/${fragments.size}")
+                            }
+                            if (sent == fragments.size) {
+                                TransferProgressManager.complete(transferId, fragments.size)
+                                if (BuildConfig.DEBUG) {
+                                    Log.d(TAG, "Transfer complete [$progressTag] id=${transferId.take(8)} total=${fragments.size}")
+                                }
+                            }
                         }
                     }
                 }
@@ -169,11 +194,24 @@ class BluetoothPacketBroadcaster(
         // Send single packet if no fragmentation needed
         if (transferId != null) {
             TransferProgressManager.start(transferId, 1)
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "Transfer start [$progressTag] id=${transferId.take(8)} total=1")
+            }
         }
-        broadcastSinglePacket(routed, gattServer, characteristic)
+        if (isSourceRoutedFromSelf && firstHopPeerId != null) {
+            sendPacketToPeer(routed, firstHopPeerId, gattServer, characteristic)
+        } else {
+            broadcastSinglePacket(routed, gattServer, characteristic)
+        }
         if (transferId != null) {
             TransferProgressManager.progress(transferId, 1, 1)
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "Transfer progress [$progressTag] id=${transferId.take(8)} 1/1")
+            }
             TransferProgressManager.complete(transferId, 1)
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "Transfer complete [$progressTag] id=${transferId.take(8)} total=1")
+            }
         }
     }
 
@@ -195,6 +233,7 @@ class BluetoothPacketBroadcaster(
     ): Boolean {
         val packet = routed.packet
         val data = packet.toBinaryData() ?: return false
+        val progressTag = if (!packet.route.isNullOrEmpty()) "directed-routed" else "directed"
         val isFile = packet.type == MessageType.FILE_TRANSFER.value
         if (isFile) {
             if (BuildConfig.DEBUG) Log.d(TAG, "📤 Broadcasting FILE_TRANSFER: ${packet.payload.size} bytes")
@@ -203,6 +242,9 @@ class BluetoothPacketBroadcaster(
         val transferId = routed.transferId ?: (if (isFile) sha256Hex(packet.payload) else null)
         if (transferId != null) {
             TransferProgressManager.start(transferId, 1)
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "Transfer start [$progressTag] id=${transferId.take(8)} total=1")
+            }
         }
         val typeName = MessageType.fromValue(packet.type)?.name ?: packet.type.toString()
         val senderPeerID = routed.peerID ?: packet.senderID.toHexString()
@@ -221,6 +263,10 @@ class BluetoothPacketBroadcaster(
                 if (transferId != null) {
                     TransferProgressManager.progress(transferId, 1, 1)
                     TransferProgressManager.complete(transferId, 1)
+                    if (BuildConfig.DEBUG) {
+                        Log.d(TAG, "Transfer progress [$progressTag] id=${transferId.take(8)} 1/1")
+                        Log.d(TAG, "Transfer complete [$progressTag] id=${transferId.take(8)} total=1")
+                    }
                 }
                 return true
             }
@@ -235,6 +281,10 @@ class BluetoothPacketBroadcaster(
                 if (transferId != null) {
                     TransferProgressManager.progress(transferId, 1, 1)
                     TransferProgressManager.complete(transferId, 1)
+                    if (BuildConfig.DEBUG) {
+                        Log.d(TAG, "Transfer progress [$progressTag] id=${transferId.take(8)} 1/1")
+                        Log.d(TAG, "Transfer complete [$progressTag] id=${transferId.take(8)} total=1")
+                    }
                 }
                 return true
             }

@@ -863,6 +863,15 @@ final class BLEService: NSObject {
             packetToSend = packet
         }
         
+        // Source-routed packets must be sent directly to the first hop only.
+        if let route = packetToSend.route, !route.isEmpty {
+            let padForBLE = padPolicy(for: packetToSend.type)
+            if let firstHop = routingPeer(from: route[0]) {
+                sendPacketDirected(packetToSend, to: firstHop, padding: padForBLE)
+            }
+            return
+        }
+
         // Encode once using a small per-type padding policy, then delegate by type
         let padForBLE = padPolicy(for: packetToSend.type)
         if packetToSend.type == MessageType.fileTransfer.rawValue {
@@ -1080,9 +1089,9 @@ final class BLEService: NSObject {
     }
 
     // Directed send helper (unicast to a specific peerID) without altering packet contents
-    private func sendPacketDirected(_ packet: BitchatPacket, to peerID: PeerID) {
-        guard let data = packet.toBinaryData(padding: false) else { return }
-        sendOnAllLinks(packet: packet, data: data, pad: false, directedOnlyPeer: peerID)
+    private func sendPacketDirected(_ packet: BitchatPacket, to peerID: PeerID, padding: Bool) {
+        guard let data = packet.toBinaryData(padding: padding) else { return }
+        sendOnAllLinks(packet: packet, data: data, pad: padding, directedOnlyPeer: peerID)
     }
 
     // MARK: - Directed store-and-forward
@@ -1583,7 +1592,8 @@ extension BLEService: GossipSyncManager.Delegate {
     }
 
     func sendPacket(to peerID: PeerID, packet: BitchatPacket) {
-        sendPacketDirected(packet, to: peerID)
+        let padForBLE = padPolicy(for: packet.type)
+        sendPacketDirected(packet, to: peerID, padding: padForBLE)
     }
 
     func signPacketForBroadcast(_ packet: BitchatPacket) -> BitchatPacket {
@@ -2808,44 +2818,28 @@ extension BLEService {
         PeerID(routingData: data)
     }
 
+    internal static func nextHopData(route: [Data], selfData: Data, recipientID: Data?) -> Data? {
+        guard let index = route.firstIndex(of: selfData) else { return nil }
+        if index == route.count - 1 {
+            return recipientID
+        }
+        return route[index + 1]
+    }
+
     private func forwardAlongRouteIfNeeded(_ packet: BitchatPacket) -> Bool {
         guard let route = packet.route, !route.isEmpty else { return false }
         let myRoutingData = routingData(for: myPeerID) ?? (myPeerIDData.isEmpty ? nil : myPeerIDData)
         guard let selfData = myRoutingData else { return false }
         
+        let padForBLE = padPolicy(for: packet.type)
+
         // Route contains only intermediate hops (start and end excluded)
-        // If we're not in the route, we're the sender - forward to first hop
-        guard let index = route.firstIndex(of: selfData) else {
-            // We're the sender, forward to first intermediate hop
-            guard packet.ttl > 1 else { return true }
-            let firstHopData = route[0]
-            guard let nextPeer = routingPeer(from: firstHopData),
-                  isPeerConnected(nextPeer) else {
-                return false
-            }
-            var relayPacket = packet
-            relayPacket.ttl = packet.ttl - 1
-            sendPacketDirected(relayPacket, to: nextPeer)
+        // If we're not in the route, we should not relay it.
+        guard let nextHopData = Self.nextHopData(route: route, selfData: selfData, recipientID: packet.recipientID) else {
             return true
         }
 
-        // We're an intermediate node in the route
-        // If we're the last intermediate hop, forward to destination
-        if index == route.count - 1 {
-            guard packet.ttl > 1 else { return true }
-            guard let destinationPeer = PeerID(hexData: packet.recipientID),
-                  isPeerConnected(destinationPeer) else {
-                return false
-            }
-            var relayPacket = packet
-            relayPacket.ttl = packet.ttl - 1
-            sendPacketDirected(relayPacket, to: destinationPeer)
-            return true
-        }
-
-        // Forward to next intermediate hop
         guard packet.ttl > 1 else { return true }
-        let nextHopData = route[index + 1]
         guard let nextPeer = routingPeer(from: nextHopData),
               isPeerConnected(nextPeer) else {
             return false
@@ -2853,7 +2847,7 @@ extension BLEService {
 
         var relayPacket = packet
         relayPacket.ttl = packet.ttl - 1
-        sendPacketDirected(relayPacket, to: nextPeer)
+        sendPacketDirected(relayPacket, to: nextPeer, padding: padForBLE)
         return true
     }
 

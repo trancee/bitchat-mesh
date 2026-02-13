@@ -1,0 +1,153 @@
+package com.bitchat.android.mesh
+
+import com.bitchat.android.model.RoutedPacket
+import com.bitchat.android.protocol.BitchatPacket
+import com.bitchat.android.protocol.MessageType
+import com.bitchat.android.protocol.SpecialRecipients
+import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+
+class PacketRelayManagerTests {
+    private class FakeDelegate : PacketRelayManagerDelegate {
+        var broadcastCount = 0
+        val sendToPeerCalls = mutableListOf<String>()
+        val sendResults = mutableMapOf<String, Boolean>()
+
+        override fun getNetworkSize(): Int = 5
+
+        override fun getBroadcastRecipient(): ByteArray = SpecialRecipients.BROADCAST
+
+        override fun broadcastPacket(routed: RoutedPacket) {
+            broadcastCount += 1
+        }
+
+        override fun sendToPeer(peerID: String, routed: RoutedPacket): Boolean {
+            sendToPeerCalls.add(peerID)
+            return sendResults[peerID] ?: false
+        }
+    }
+
+    @Test
+    fun dropsRoutedPacketWhenNotInRoute() = runBlocking {
+        val myPeerID = "0102030405060708"
+        val delegate = FakeDelegate()
+        val relay = PacketRelayManager(myPeerID)
+        relay.delegate = delegate
+
+        val packet = BitchatPacket(
+            version = 2u,
+            type = MessageType.MESSAGE.value,
+            senderID = hexToBytes("1111111111111111"),
+            recipientID = hexToBytes("2222222222222222"),
+            timestamp = 1uL,
+            payload = byteArrayOf(0x01),
+            signature = null,
+            ttl = 3u,
+            route = listOf(hexToBytes("9999999999999999"))
+        )
+
+        relay.handlePacketRelay(RoutedPacket(packet, peerID = "1111111111111111"))
+
+        assertTrue(delegate.sendToPeerCalls.isEmpty())
+        assertEquals(0, delegate.broadcastCount)
+    }
+
+    @Test
+    fun forwardsRoutedPacketToNextHop() = runBlocking {
+        val myPeerID = "0102030405060708"
+        val delegate = FakeDelegate()
+        val relay = PacketRelayManager(myPeerID)
+        relay.delegate = delegate
+
+        val nextHop = "0a0b0c0d0e0f1011"
+        delegate.sendResults[nextHop] = true
+
+        val packet = BitchatPacket(
+            version = 2u,
+            type = MessageType.MESSAGE.value,
+            senderID = hexToBytes("1111111111111111"),
+            recipientID = hexToBytes("2222222222222222"),
+            timestamp = 1uL,
+            payload = byteArrayOf(0x01),
+            signature = null,
+            ttl = 3u,
+            route = listOf(hexToBytes(myPeerID), hexToBytes(nextHop))
+        )
+
+        relay.handlePacketRelay(RoutedPacket(packet, peerID = "1111111111111111"))
+
+        assertEquals(listOf(nextHop), delegate.sendToPeerCalls)
+        assertEquals(0, delegate.broadcastCount)
+    }
+
+    @Test
+    fun forwardsRoutedPacketToRecipientWhenLastIntermediate() = runBlocking {
+        val myPeerID = "0102030405060708"
+        val delegate = FakeDelegate()
+        val relay = PacketRelayManager(myPeerID)
+        relay.delegate = delegate
+
+        val recipient = "2222222222222222"
+        delegate.sendResults[recipient] = true
+
+        val packet = BitchatPacket(
+            version = 2u,
+            type = MessageType.MESSAGE.value,
+            senderID = hexToBytes("1111111111111111"),
+            recipientID = hexToBytes(recipient),
+            timestamp = 1uL,
+            payload = byteArrayOf(0x01),
+            signature = null,
+            ttl = 3u,
+            route = listOf(hexToBytes(myPeerID))
+        )
+
+        relay.handlePacketRelay(RoutedPacket(packet, peerID = "1111111111111111"))
+
+        assertEquals(listOf(recipient), delegate.sendToPeerCalls)
+        assertEquals(0, delegate.broadcastCount)
+    }
+
+    @Test
+    fun dropsRoutedPacketWhenNextHopUnavailable() = runBlocking {
+        val myPeerID = "0102030405060708"
+        val delegate = FakeDelegate()
+        val relay = PacketRelayManager(myPeerID)
+        relay.delegate = delegate
+
+        val nextHop = "0a0b0c0d0e0f1011"
+        delegate.sendResults[nextHop] = false
+
+        val packet = BitchatPacket(
+            version = 2u,
+            type = MessageType.MESSAGE.value,
+            senderID = hexToBytes("1111111111111111"),
+            recipientID = hexToBytes("2222222222222222"),
+            timestamp = 1uL,
+            payload = byteArrayOf(0x01),
+            signature = null,
+            ttl = 3u,
+            route = listOf(hexToBytes(myPeerID), hexToBytes(nextHop))
+        )
+
+        relay.handlePacketRelay(RoutedPacket(packet, peerID = "1111111111111111"))
+
+        assertEquals(listOf(nextHop), delegate.sendToPeerCalls)
+        assertEquals(0, delegate.broadcastCount)
+    }
+
+    private fun hexToBytes(hex: String): ByteArray {
+        val output = ByteArray(8)
+        var index = 0
+        var outIndex = 0
+        while (index + 1 < hex.length && outIndex < 8) {
+            val byteValue = hex.substring(index, index + 2).toInt(16).toByte()
+            output[outIndex] = byteValue
+            index += 2
+            outIndex += 1
+        }
+        return output
+    }
+}

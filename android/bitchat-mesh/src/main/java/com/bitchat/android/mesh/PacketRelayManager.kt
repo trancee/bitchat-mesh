@@ -62,7 +62,7 @@ class PacketRelayManager(private val myPeerID: String) {
         val relayPacket = packet.copy(ttl = (packet.ttl - 1u).toUByte())
         if (BuildConfig.DEBUG) Log.d(TAG, "Decremented TTL from ${packet.ttl} to ${relayPacket.ttl}")
         
-        // Source-based routing: if route is set and includes us, try targeted next-hop forwarding
+        // Source-based routing: if route is set, only forward along the route
         val route = relayPacket.route
         if (!route.isNullOrEmpty()) {
             // Check for duplicate hops to prevent routing loops
@@ -72,26 +72,31 @@ class PacketRelayManager(private val myPeerID: String) {
             }
             val myIdBytes = hexStringToPeerBytes(myPeerID)
             val index = route.indexOfFirst { it.contentEquals(myIdBytes) }
-            if (index >= 0) {
-                val nextHopIdHex: String? = run {
-                    val nextIndex = index + 1
-                    if (nextIndex < route.size) {
-                        route[nextIndex].toHexString()
-                    } else {
-                        // We are the last intermediate; try final recipient as next hop
-                        relayPacket.recipientID?.toHexString()
-                    }
-                }
-                if (nextHopIdHex != null) {
-                    val success = try { delegate?.sendToPeer(nextHopIdHex, RoutedPacket(relayPacket, peerID, routed.relayAddress)) } catch (_: Exception) { false } ?: false
-                    if (success) {
-                        Log.i(TAG, "📦 Source-route relay: ${peerID.take(8)} -> ${nextHopIdHex.take(8)} (type ${'$'}{packet.type}, TTL ${'$'}{relayPacket.ttl})")
-                        return
-                    } else {
-                        Log.w(TAG, "Source-route next hop ${nextHopIdHex.take(8)} not directly connected; falling back to broadcast")
-                    }
+            if (index < 0) {
+                Log.w(TAG, "Source-route packet received by non-route node; dropping")
+                return
+            }
+
+            val nextHopIdHex: String? = run {
+                val nextIndex = index + 1
+                if (nextIndex < route.size) {
+                    route[nextIndex].toHexString()
+                } else {
+                    // We are the last intermediate; try final recipient as next hop
+                    relayPacket.recipientID?.toHexString()
                 }
             }
+            if (nextHopIdHex != null) {
+                val success = try { delegate?.sendToPeer(nextHopIdHex, RoutedPacket(relayPacket, peerID, routed.relayAddress)) } catch (_: Exception) { false } ?: false
+                if (success) {
+                    Log.i(TAG, "📦 Source-route relay: ${peerID.take(8)} -> ${nextHopIdHex.take(8)} (type ${'$'}{packet.type}, TTL ${'$'}{relayPacket.ttl})")
+                } else {
+                    Log.w(TAG, "Source-route next hop ${nextHopIdHex.take(8)} not directly connected; dropping")
+                }
+                return
+            }
+            Log.w(TAG, "Source-route packet missing next hop; dropping")
+            return
         }
 
         // Apply relay logic based on packet type and debug switch
