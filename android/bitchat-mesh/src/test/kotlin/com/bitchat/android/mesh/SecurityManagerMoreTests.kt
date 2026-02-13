@@ -244,6 +244,61 @@ class SecurityManagerMoreTests {
         assertTrue(manager.hasKeysForPeer("peer"))
     }
 
+    @Test
+    fun cleanupOldDataTrimsProcessedMessages() {
+        val manager = SecurityManager(mock<EncryptionService>(), MY_PEER_ID)
+        val processed = getProcessedMessages(manager)
+        val timestamps = getMessageTimestamps(manager)
+        val now = System.currentTimeMillis()
+        val max = AppConstants.Security.MAX_PROCESSED_MESSAGES
+
+        repeat(max + 5) { index ->
+            val id = "msg-$index"
+            processed.add(id)
+            timestamps[id] = now
+        }
+
+        invokeCleanup(manager)
+
+        assertTrue(processed.size == max)
+        assertTrue(timestamps.size == max)
+    }
+
+    @Test
+    fun cleanupOldDataTrimsKeyExchanges() {
+        val manager = SecurityManager(mock<EncryptionService>(), MY_PEER_ID)
+        val exchanges = getProcessedKeyExchanges(manager)
+        val max = AppConstants.Security.MAX_PROCESSED_KEY_EXCHANGES
+
+        repeat(max + 7) { index ->
+            exchanges.add("key-$index")
+        }
+
+        invokeCleanup(manager)
+
+        assertTrue(exchanges.size == max)
+    }
+
+    @Test
+    fun cleanupOldDataRemovesStaleMessages() {
+        val manager = SecurityManager(mock<EncryptionService>(), MY_PEER_ID)
+        val processed = getProcessedMessages(manager)
+        val timestamps = getMessageTimestamps(manager)
+        val staleId = "stale-1"
+        val freshId = "fresh-1"
+        val staleTimestamp = System.currentTimeMillis() - AppConstants.Security.MESSAGE_TIMEOUT_MS - 1
+
+        processed.add(staleId)
+        timestamps[staleId] = staleTimestamp
+        processed.add(freshId)
+        timestamps[freshId] = System.currentTimeMillis()
+
+        invokeCleanup(manager)
+
+        assertTrue(!processed.contains(staleId))
+        assertTrue(processed.contains(freshId))
+    }
+
     private fun hexToBytes(hex: String): ByteArray {
         val clean = if (hex.length % 2 == 0) hex else "0$hex"
         val out = ByteArray(clean.length / 2)
@@ -253,6 +308,33 @@ class SecurityManagerMoreTests {
             i += 2
         }
         return out
+    }
+
+    private fun invokeCleanup(manager: SecurityManager) {
+        val method = SecurityManager::class.java.getDeclaredMethod("cleanupOldData")
+        method.isAccessible = true
+        method.invoke(manager)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun getProcessedMessages(manager: SecurityManager): MutableSet<String> {
+        val field = SecurityManager::class.java.getDeclaredField("processedMessages")
+        field.isAccessible = true
+        return field.get(manager) as MutableSet<String>
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun getMessageTimestamps(manager: SecurityManager): MutableMap<String, Long> {
+        val field = SecurityManager::class.java.getDeclaredField("messageTimestamps")
+        field.isAccessible = true
+        return field.get(manager) as MutableMap<String, Long>
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun getProcessedKeyExchanges(manager: SecurityManager): MutableSet<String> {
+        val field = SecurityManager::class.java.getDeclaredField("processedKeyExchanges")
+        field.isAccessible = true
+        return field.get(manager) as MutableSet<String>
     }
 
     companion object {

@@ -2,6 +2,7 @@ package com.bitchat.android.mesh
 
 import android.content.ContextWrapper
 import com.bitchat.android.model.BitchatMessage
+import com.bitchat.android.model.BitchatFilePacket
 import com.bitchat.android.model.IdentityAnnouncement
 import com.bitchat.android.model.NoisePayload
 import com.bitchat.android.model.NoisePayloadType
@@ -16,6 +17,8 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.io.File
+import java.nio.file.Files
 
 class MessageHandlerTests {
     private class TestDelegate : MessageHandlerDelegate {
@@ -33,6 +36,11 @@ class MessageHandlerTests {
         var decryptOverride: ByteArray? = null
         var decryptReturnsNull: Boolean = false
         var verifySignatureOverride: Boolean? = null
+        var lastFilePeer: String? = null
+        var lastFileName: String? = null
+        var lastFileSize: Long? = null
+        var lastFileMime: String? = null
+        var lastFilePath: String? = null
 
         override fun addOrUpdatePeer(peerID: String, nickname: String): Boolean = true
         override fun removePeer(peerID: String) { lastRemovedPeer = peerID }
@@ -85,7 +93,13 @@ class MessageHandlerTests {
         override fun onVerifyResponseReceived(peerID: String, payload: ByteArray, timestampMs: Long) {
             lastVerifyResponse = peerID to payload
         }
-        override fun onFileReceived(peerID: String, fileName: String, fileSize: Long, mimeType: String, localPath: String) {}
+        override fun onFileReceived(peerID: String, fileName: String, fileSize: Long, mimeType: String, localPath: String) {
+            lastFilePeer = peerID
+            lastFileName = fileName
+            lastFileSize = fileSize
+            lastFileMime = mimeType
+            lastFilePath = localPath
+        }
     }
 
     @Test
@@ -433,8 +447,117 @@ class MessageHandlerTests {
         assertTrue(!handler.handleAnnounce(RoutedPacket(packet, peerID = "peer-19")))
     }
 
-    private fun newHandler(): MessageHandler {
-        return MessageHandler(MY_PEER_ID, ContextWrapper(null))
+    @Test
+    fun handleBroadcastFileTransferSavesFile() = runBlocking {
+        val tempDir = createTempDir()
+        try {
+            val handler = newHandler(tempDir)
+            val delegate = TestDelegate()
+            delegate.peerInfo = PeerInfo(
+                id = "peer-20",
+                nickname = "peer-20",
+                isConnected = true,
+                isDirectConnection = true,
+                noisePublicKey = null,
+                signingPublicKey = null,
+                isVerifiedNickname = true,
+                lastSeen = System.currentTimeMillis()
+            )
+            handler.delegate = delegate
+
+            val content = "file-data".toByteArray(Charsets.UTF_8)
+            val filePacket = BitchatFilePacket("note.txt", content.size.toLong(), "text/plain", content)
+            val packet = BitchatPacket(
+                type = MessageType.FILE_TRANSFER.value,
+                senderID = hexToBytes("abababababababab"),
+                recipientID = SpecialRecipients.BROADCAST,
+                timestamp = System.currentTimeMillis().toULong(),
+                payload = filePacket.encode()!!,
+                ttl = AppConstants.MESSAGE_TTL_HOPS
+            )
+
+            handler.handleMessage(RoutedPacket(packet, peerID = "peer-20"))
+
+            assertEquals("peer-20", delegate.lastFilePeer)
+            assertEquals("note.txt", delegate.lastFileName)
+            assertEquals(content.size.toLong(), delegate.lastFileSize)
+            assertEquals("text/plain", delegate.lastFileMime)
+            val savedPath = delegate.lastFilePath
+            assertTrue(savedPath != null && File(savedPath).exists())
+            assertEquals(savedPath, delegate.lastMessage?.content)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun handlePrivateFileTransferSavesFile() = runBlocking {
+        val tempDir = createTempDir()
+        try {
+            val handler = newHandler(tempDir)
+            val delegate = TestDelegate()
+            handler.delegate = delegate
+
+            val content = "secret-file".toByteArray(Charsets.UTF_8)
+            val filePacket = BitchatFilePacket("secret.bin", content.size.toLong(), "application/octet-stream", content)
+            val packet = BitchatPacket(
+                type = MessageType.FILE_TRANSFER.value,
+                senderID = hexToBytes("bbbbbbbbbbbbbbbb"),
+                recipientID = hexToBytes(MY_PEER_ID),
+                timestamp = System.currentTimeMillis().toULong(),
+                payload = filePacket.encode()!!,
+                signature = null,
+                ttl = AppConstants.MESSAGE_TTL_HOPS
+            )
+
+            handler.handleMessage(RoutedPacket(packet, peerID = "peer-21"))
+
+            assertEquals("peer-21", delegate.lastFilePeer)
+            val savedPath = delegate.lastFilePath
+            assertTrue(savedPath != null && File(savedPath).exists())
+            assertTrue(delegate.lastMessage?.isPrivate == true)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun handleNoiseEncryptedFileTransferSavesFileAndAcks() = runBlocking {
+        val tempDir = createTempDir()
+        try {
+            val handler = newHandler(tempDir)
+            val delegate = TestDelegate()
+            handler.delegate = delegate
+
+            val content = "encrypted".toByteArray(Charsets.UTF_8)
+            val filePacket = BitchatFilePacket("enc.txt", content.size.toLong(), "text/plain", content)
+            val noisePayload = NoisePayload(NoisePayloadType.FILE_TRANSFER, filePacket.encode()!!).encode()
+            val packet = noiseEncryptedPacket(noisePayload)
+
+            handler.handleNoiseEncrypted(RoutedPacket(packet, peerID = "peer-22"))
+
+            val savedPath = delegate.lastFilePath
+            assertTrue(savedPath != null && File(savedPath).exists())
+            assertTrue(delegate.sentPackets.any { it.type == MessageType.NOISE_ENCRYPTED.value })
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    private fun newHandler(cacheDir: File? = null): MessageHandler {
+        val context = if (cacheDir == null) {
+            ContextWrapper(null)
+        } else {
+            object : ContextWrapper(null) {
+                override fun getCacheDir(): File = cacheDir
+                override fun getFilesDir(): File = cacheDir
+            }
+        }
+        return MessageHandler(MY_PEER_ID, context)
+    }
+
+    private fun createTempDir(): File {
+        return Files.createTempDirectory("bitchat-mesh").toFile()
     }
 
     private fun noiseEncryptedPacket(payload: ByteArray): BitchatPacket {
