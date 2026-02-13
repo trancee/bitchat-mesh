@@ -1,24 +1,46 @@
 package com.bitchat.android.mesh
 
-import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class TransferProgressManagerTests {
+    private val dispatcher = UnconfinedTestDispatcher()
+
+    @BeforeEach
+    fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @AfterEach
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
     @Test
     fun emitsProgressEvents() = runBlocking {
-        val channel = Channel<TransferProgressEvent>(Channel.UNLIMITED)
-        val job = launch(start = CoroutineStart.UNDISPATCHED) {
+        val channel = Channel<TransferProgressEvent>(Channel.BUFFERED)
+        val job = launch {
             TransferProgressManager.events.take(3).collect { event ->
-                channel.send(event)
+                channel.trySend(event)
             }
         }
+
+        yield()
 
         TransferProgressManager.start("t1", 10)
         TransferProgressManager.progress("t1", 5, 10)
