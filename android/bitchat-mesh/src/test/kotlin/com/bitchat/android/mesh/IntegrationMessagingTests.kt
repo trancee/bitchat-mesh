@@ -74,6 +74,7 @@ class IntegrationMessagingTests {
 
         assertEquals(listOf(nextHop), delegate.sendToPeerCalls)
         assertEquals(0, delegate.broadcastCount)
+        assertEquals(2u.toUByte(), delegate.lastSentRouted?.packet?.ttl)
     }
 
     private fun mockContext(): Context {
@@ -130,6 +131,7 @@ class IntegrationMessagingTests {
         var broadcastCount = 0
         val sendToPeerCalls = mutableListOf<String>()
         val sendResults = mutableMapOf<String, Boolean>()
+        var lastSentRouted: RoutedPacket? = null
 
         override fun getNetworkSize(): Int = 5
 
@@ -141,6 +143,7 @@ class IntegrationMessagingTests {
 
         override fun sendToPeer(peerID: String, routed: RoutedPacket): Boolean {
             sendToPeerCalls.add(peerID)
+            lastSentRouted = routed
             return sendResults[peerID] ?: false
         }
     }

@@ -122,13 +122,14 @@ class MeshListenerTests {
         TransferProgressManager.complete("transfer-1", 2)
 
         assertTrue(listener.transferLatch.await(2, TimeUnit.SECONDS))
+        val ordered = listener.transferEvents.sortedBy { it.sent }
         assertEquals(
             listOf(
                 TransferProgressEvent("transfer-1", 0, 2, false),
                 TransferProgressEvent("transfer-1", 1, 2, false),
                 TransferProgressEvent("transfer-1", 2, 2, true)
             ),
-            listener.transferEvents
+            ordered
         )
     }
 

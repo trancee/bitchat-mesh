@@ -155,4 +155,14 @@ final class IntegrationMessagingTests: XCTestCase {
 
         XCTAssertEqual(resolved, nextHop)
     }
+
+    func testRoutedMessageSelectsRecipientWhenLastHop() {
+        let selfData = Data(hexString: "0102030405060708") ?? Data()
+        let recipient = Data(hexString: "2122232425262728") ?? Data()
+        let route = [selfData]
+
+        let resolved = BLEService.nextHopData(route: route, selfData: selfData, recipientID: recipient)
+
+        XCTAssertEqual(resolved, recipient)
+    }
 }
