@@ -544,6 +544,149 @@ class MessageHandlerTests {
         }
     }
 
+    @Test
+    fun handleBroadcastFileTransferDecodeFailureFallsBackToText() = runBlocking {
+        val handler = newHandler()
+        val delegate = TestDelegate()
+        delegate.peerInfo = PeerInfo(
+            id = "peer-23",
+            nickname = "peer-23",
+            isConnected = true,
+            isDirectConnection = true,
+            noisePublicKey = null,
+            signingPublicKey = null,
+            isVerifiedNickname = true,
+            lastSeen = System.currentTimeMillis()
+        )
+        handler.delegate = delegate
+
+        val packet = BitchatPacket(
+            type = MessageType.FILE_TRANSFER.value,
+            senderID = hexToBytes("abababababababab"),
+            recipientID = SpecialRecipients.BROADCAST,
+            timestamp = System.currentTimeMillis().toULong(),
+            payload = byteArrayOf(0x01),
+            ttl = AppConstants.MESSAGE_TTL_HOPS
+        )
+
+        handler.handleMessage(RoutedPacket(packet, peerID = "peer-23"))
+
+        assertTrue(delegate.lastFilePath == null)
+        assertEquals(String(packet.payload, Charsets.UTF_8), delegate.lastMessage?.content)
+    }
+
+    @Test
+    fun handlePrivateFileTransferDecodeFailureFallsBackToText() = runBlocking {
+        val handler = newHandler()
+        val delegate = TestDelegate()
+        handler.delegate = delegate
+
+        val packet = BitchatPacket(
+            type = MessageType.FILE_TRANSFER.value,
+            senderID = hexToBytes("bbbbbbbbbbbbbbbb"),
+            recipientID = hexToBytes(MY_PEER_ID),
+            timestamp = System.currentTimeMillis().toULong(),
+            payload = byteArrayOf(0x01, 0x02),
+            signature = null,
+            ttl = AppConstants.MESSAGE_TTL_HOPS
+        )
+
+        handler.handleMessage(RoutedPacket(packet, peerID = "peer-24"))
+
+        assertTrue(delegate.lastFilePath == null)
+        assertEquals(String(packet.payload, Charsets.UTF_8), delegate.lastMessage?.content)
+    }
+
+    @Test
+    fun handleNoiseEncryptedFileTransferDecodeFailureDrops() = runBlocking {
+        val handler = newHandler()
+        val delegate = TestDelegate()
+        handler.delegate = delegate
+
+        val noisePayload = NoisePayload(NoisePayloadType.FILE_TRANSFER, byteArrayOf(0x01)).encode()
+        val packet = noiseEncryptedPacket(noisePayload)
+
+        handler.handleNoiseEncrypted(RoutedPacket(packet, peerID = "peer-25"))
+
+        assertTrue(delegate.lastFilePath == null)
+        assertTrue(delegate.sentPackets.none { it.type == MessageType.NOISE_ENCRYPTED.value })
+        assertTrue(delegate.lastMessage == null)
+    }
+
+    @Test
+    fun handleNoiseEncryptedInvalidPayloadDrops() = runBlocking {
+        val handler = newHandler()
+        val delegate = TestDelegate()
+        handler.delegate = delegate
+
+        val packet = noiseEncryptedPacket(byteArrayOf(0x7f, 0x01, 0x02))
+
+        handler.handleNoiseEncrypted(RoutedPacket(packet, peerID = "peer-26"))
+
+        assertTrue(delegate.lastMessage == null)
+        assertTrue(delegate.sentPackets.isEmpty())
+    }
+
+    @Test
+    fun handleNoiseEncryptedEmptyDecryptedDataDrops() = runBlocking {
+        val handler = newHandler()
+        val delegate = TestDelegate()
+        delegate.decryptOverride = ByteArray(0)
+        handler.delegate = delegate
+
+        val packet = noiseEncryptedPacket(byteArrayOf(0x01))
+
+        handler.handleNoiseEncrypted(RoutedPacket(packet, peerID = "peer-27"))
+
+        assertTrue(delegate.lastMessage == null)
+        assertTrue(delegate.sentPackets.isEmpty())
+    }
+
+    @Test
+    fun handleNoiseEncryptedPrivateMessageDecodeFailureDrops() = runBlocking {
+        val handler = newHandler()
+        val delegate = TestDelegate()
+        handler.delegate = delegate
+
+        val noisePayload = NoisePayload(NoisePayloadType.PRIVATE_MESSAGE, byteArrayOf(0x01)).encode()
+        val packet = noiseEncryptedPacket(noisePayload)
+
+        handler.handleNoiseEncrypted(RoutedPacket(packet, peerID = "peer-28"))
+
+        assertTrue(delegate.lastMessage == null)
+        assertTrue(delegate.sentPackets.isEmpty())
+    }
+
+    @Test
+    fun handleNoiseEncryptedDeliveredDoesNotSendAck() = runBlocking {
+        val handler = newHandler()
+        val delegate = TestDelegate()
+        handler.delegate = delegate
+
+        val noisePayload = NoisePayload(NoisePayloadType.DELIVERED, "msg-ack".toByteArray(Charsets.UTF_8)).encode()
+        val packet = noiseEncryptedPacket(noisePayload)
+
+        handler.handleNoiseEncrypted(RoutedPacket(packet, peerID = "peer-29"))
+
+        assertEquals("msg-ack", delegate.lastDeliveryAck?.first)
+        assertTrue(delegate.sentPackets.isEmpty())
+    }
+
+    @Test
+    fun handleNoiseEncryptedReadReceiptDoesNotSendAck() = runBlocking {
+        val handler = newHandler()
+        val delegate = TestDelegate()
+        handler.delegate = delegate
+
+        val noisePayload = NoisePayload(NoisePayloadType.READ_RECEIPT, "msg-read".toByteArray(Charsets.UTF_8)).encode()
+        val packet = noiseEncryptedPacket(noisePayload)
+
+        handler.handleNoiseEncrypted(RoutedPacket(packet, peerID = "peer-30"))
+
+        assertEquals("msg-read", delegate.lastReadReceipt?.first)
+        assertTrue(delegate.sentPackets.isEmpty())
+    }
+
     private fun newHandler(cacheDir: File? = null): MessageHandler {
         val context = if (cacheDir == null) {
             ContextWrapper(null)
