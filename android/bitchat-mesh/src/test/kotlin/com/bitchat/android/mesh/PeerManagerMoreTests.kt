@@ -50,4 +50,37 @@ class PeerManagerMoreTests {
         manager.clearAllFingerprints()
         assertTrue(manager.getAllPeerFingerprints().isEmpty())
     }
+
+    @Test
+    fun removesStalePeerWithDuplicateNickname() {
+        val manager = PeerManager()
+        manager.clearAllPeers()
+
+        manager.addOrUpdatePeer("peer-old", "dup")
+        val peersField = PeerManager::class.java.getDeclaredField("peers")
+        peersField.isAccessible = true
+        val peers = peersField.get(manager) as MutableMap<String, PeerInfo>
+        val stale = peers["peer-old"]!!.copy(lastSeen = System.currentTimeMillis() - 60_000L)
+        peers["peer-old"] = stale
+
+        manager.addOrUpdatePeer("peer-new", "dup")
+
+        assertTrue(manager.getPeerInfo("peer-old") == null)
+        assertNotNull(manager.getPeerInfo("peer-new"))
+    }
+
+    @Test
+    fun refreshPeerListNotifiesDelegate() {
+        val manager = PeerManager()
+        val updates = mutableListOf<List<String>>()
+        manager.delegate = object : PeerManagerDelegate {
+            override fun onPeerListUpdated(peerIDs: List<String>) { updates.add(peerIDs) }
+            override fun onPeerRemoved(peerID: String) {}
+        }
+
+        manager.addOrUpdatePeer("peer-x", "x")
+        manager.refreshPeerList()
+
+        assertTrue(updates.isNotEmpty())
+    }
 }

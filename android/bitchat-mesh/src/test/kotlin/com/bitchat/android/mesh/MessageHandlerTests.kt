@@ -242,6 +242,95 @@ class MessageHandlerTests {
         assertEquals("secret", delegate.lastMessage?.content)
     }
 
+    @Test
+    fun handleMessageDropsUnverifiedBroadcast() = runBlocking {
+        val handler = newHandler()
+        val delegate = TestDelegate()
+        delegate.peerInfo = PeerInfo(
+            id = "peer-12",
+            nickname = "peer-12",
+            isConnected = true,
+            isDirectConnection = false,
+            noisePublicKey = null,
+            signingPublicKey = null,
+            isVerifiedNickname = false,
+            lastSeen = System.currentTimeMillis()
+        )
+        handler.delegate = delegate
+
+        val broadcast = BitchatPacket(
+            type = MessageType.MESSAGE.value,
+            senderID = hexToBytes("abababababababab"),
+            recipientID = SpecialRecipients.BROADCAST,
+            timestamp = System.currentTimeMillis().toULong(),
+            payload = "hello".toByteArray(Charsets.UTF_8),
+            ttl = AppConstants.MESSAGE_TTL_HOPS
+        )
+
+        handler.handleMessage(RoutedPacket(broadcast, peerID = "peer-12"))
+
+        assertTrue(delegate.lastMessage == null)
+    }
+
+    @Test
+    fun handleAnnounceRejectsStaleOrInvalid() = runBlocking {
+        val handler = newHandler()
+        val delegate = TestDelegate()
+        delegate.peerInfo = PeerInfo(
+            id = "peer-13",
+            nickname = "peer-13",
+            isConnected = true,
+            isDirectConnection = true,
+            noisePublicKey = ByteArray(32) { 9 },
+            signingPublicKey = ByteArray(32) { 2 },
+            isVerifiedNickname = true,
+            lastSeen = System.currentTimeMillis()
+        )
+        handler.delegate = delegate
+
+        val stalePacket = BitchatPacket(
+            type = MessageType.ANNOUNCE.value,
+            senderID = hexToBytes("abababababababab"),
+            recipientID = null,
+            timestamp = (System.currentTimeMillis() - AppConstants.Mesh.STALE_PEER_TIMEOUT_MS - 1).toULong(),
+            payload = IdentityAnnouncement("Old", ByteArray(32) { 1 }, ByteArray(32) { 2 }).encode()!!,
+            signature = ByteArray(64) { 1 },
+            ttl = AppConstants.MESSAGE_TTL_HOPS
+        )
+        assertTrue(!handler.handleAnnounce(RoutedPacket(stalePacket, peerID = "peer-13")))
+
+        val badPacket = BitchatPacket(
+            type = MessageType.ANNOUNCE.value,
+            senderID = hexToBytes("cdcdcdcdcdcdcdcd"),
+            recipientID = null,
+            timestamp = System.currentTimeMillis().toULong(),
+            payload = byteArrayOf(0x01, 0x02),
+            signature = ByteArray(64) { 1 },
+            ttl = AppConstants.MESSAGE_TTL_HOPS
+        )
+        assertTrue(!handler.handleAnnounce(RoutedPacket(badPacket, peerID = "peer-14")))
+    }
+
+    @Test
+    fun handleNoiseHandshakeSkipsNonRecipient() = runBlocking {
+        val handler = newHandler()
+        val delegate = TestDelegate()
+        handler.delegate = delegate
+
+        val packet = BitchatPacket(
+            type = MessageType.NOISE_HANDSHAKE.value,
+            senderID = hexToBytes("ffffffffffffffff"),
+            recipientID = hexToBytes("1111111111111111"),
+            timestamp = System.currentTimeMillis().toULong(),
+            payload = byteArrayOf(0x01),
+            ttl = AppConstants.MESSAGE_TTL_HOPS
+        )
+
+        handler.handleNoiseHandshake(RoutedPacket(packet, peerID = "peer-15"))
+
+        assertTrue(delegate.sentPackets.isEmpty())
+    }
+
     private fun newHandler(): MessageHandler {
         return MessageHandler(MY_PEER_ID, ContextWrapper(null))
     }
