@@ -23,6 +23,13 @@ cd android
 ./gradlew :bitchat-mesh:test
 ```
 
+Run instrumentation tests:
+
+```bash
+cd android
+./gradlew :bitchat-mesh:connectedDebugAndroidTest
+```
+
 Run release unit tests:
 
 ```bash

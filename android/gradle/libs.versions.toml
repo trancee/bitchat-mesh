@@ -56,7 +56,10 @@ mlkit-barcode = "17.3.0"
 # Testing
 junit = "4.13.2"
 junit-jupiter = "5.10.2"
+junit-vintage = "5.10.2"
 androidx-test-ext = "1.2.1"
+androidx-test-core = "1.6.1"
+androidx-test-runner = "1.6.1"
 espresso = "3.6.1"
 mockito-kotlin = "4.1.0"
 mockito-inline = "4.1.0"
@@ -130,7 +133,10 @@ mlkit-barcode-scanning = { module = "com.google.mlkit:barcode-scanning", version
 junit = { module = "junit:junit", version.ref = "junit" }
 junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit-jupiter" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit-jupiter" }
+junit-vintage-engine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit-vintage" }
 androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-test-ext" }
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidx-test-core" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-test-runner" }
 androidx-test-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espresso" }
 androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
