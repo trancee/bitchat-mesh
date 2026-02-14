@@ -71,6 +71,25 @@ class FragmentManagerTests {
     }
 
     @Test
+    fun createFragmentsReturnsOriginalWhenBelowThreshold() {
+        val manager = FragmentManager()
+        val packet = BitchatPacket(
+            type = MessageType.MESSAGE.value,
+            senderID = hexToBytes("0102030405060708"),
+            recipientID = null,
+            timestamp = System.currentTimeMillis().toULong(),
+            payload = byteArrayOf(0x01, 0x02, 0x03),
+            ttl = AppConstants.MESSAGE_TTL_HOPS
+        )
+
+        val fragments = manager.createFragments(packet)
+
+        assertEquals(1, fragments.size)
+        assertEquals(packet.payload.size, fragments[0].payload.size)
+        assertEquals(packet.type, fragments[0].type)
+    }
+
+    @Test
     fun handleFragmentReassemblesOutOfOrder() {
         val manager = FragmentManager()
         val packet = largeMessagePacket("0102030405060708")
@@ -134,6 +153,53 @@ class FragmentManagerTests {
         }
 
         assertNotNull(reassembled)
+    }
+
+    @Test
+    fun handleFragmentKeepsStateWhenReassemblyFails() {
+        val manager = FragmentManager()
+        val incoming = getIncomingFragments(manager)
+        val metadata = getFragmentMetadata(manager)
+        val fragmentId = ByteArray(FragmentPayload.FRAGMENT_ID_SIZE) { 0x0A }
+
+        val payload0 = FragmentPayload(
+            fragmentID = fragmentId,
+            index = 0,
+            total = 2,
+            originalType = MessageType.MESSAGE.value,
+            data = byteArrayOf(0x01)
+        )
+        val payload1 = FragmentPayload(
+            fragmentID = fragmentId,
+            index = 1,
+            total = 2,
+            originalType = MessageType.MESSAGE.value,
+            data = byteArrayOf(0x02)
+        )
+
+        val packet0 = BitchatPacket(
+            type = MessageType.FRAGMENT.value,
+            senderID = hexToBytes("0102030405060708"),
+            recipientID = null,
+            timestamp = System.currentTimeMillis().toULong(),
+            payload = payload0.encode(),
+            ttl = AppConstants.MESSAGE_TTL_HOPS
+        )
+        val packet1 = BitchatPacket(
+            type = MessageType.FRAGMENT.value,
+            senderID = hexToBytes("0102030405060708"),
+            recipientID = null,
+            timestamp = System.currentTimeMillis().toULong(),
+            payload = payload1.encode(),
+            ttl = AppConstants.MESSAGE_TTL_HOPS
+        )
+
+        assertTrue(manager.handleFragment(packet0) == null)
+        assertTrue(manager.handleFragment(packet1) == null)
+
+        val fragmentKey = fragmentId.joinToString("") { "%02x".format(it) }
+        assertTrue(incoming.containsKey(fragmentKey))
+        assertTrue(metadata.containsKey(fragmentKey))
     }
 
     @Test

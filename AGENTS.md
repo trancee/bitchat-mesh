@@ -5,6 +5,13 @@
 This repository contains cross-platform Bluetooth mesh libraries for BitChat.
 Use this file to keep contributor notes consistent for agents and automation.
 
+## Tech Stack
+
+* **Kotlin** (Android)
+* **Swift** (iOS)
+* **Bluetooth LE**
+* **JUnit** and **Jacoco** (Android Unit Testing and Code Coverage)
+
 ## General rules
 
 - Never make changes in the upstream repositories (`bitchat` and `bitchat-android`); only sync from them.
