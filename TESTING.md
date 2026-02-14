@@ -18,6 +18,19 @@ cd android
 - JUnit Jupiter unit tests under `android/bitchat-mesh/src/test/kotlin`
   - `com.bitchat.mesh.MeshListenerTests`
   - `com.bitchat.mesh.MeshManagerTests`
+- Android instrumentation tests under `android/bitchat-mesh/src/androidTest/kotlin`
+  - `com.bitchat.android.crypto.EncryptionServiceInstrumentationTests`
+  - `com.bitchat.android.features.file.FileUtilsInstrumentationTests`
+  - `com.bitchat.android.identity.SecureIdentityStateManagerInstrumentationTests`
+  - `com.bitchat.android.mesh.BluetoothConnectionTrackerInstrumentationTests`
+  - `com.bitchat.android.mesh.BluetoothPermissionManagerInstrumentationTests`
+  - `com.bitchat.android.mesh.PeerFingerprintManagerInstrumentationTests`
+  - `com.bitchat.android.mesh.PowerManagerInstrumentationTests`
+  - `com.bitchat.android.noise.NoiseEncryptionServiceInstrumentationTests`
+  - `com.bitchat.android.noise.NoiseSessionManagerInstrumentationTests`
+  - `com.bitchat.android.services.SeenMessageStoreInstrumentationTests`
+  - `com.bitchat.android.services.VerificationServiceInstrumentationTests`
+  - `com.bitchat.android.utils.DeviceUtilsInstrumentationTests`
 
 ### Coverage
 
