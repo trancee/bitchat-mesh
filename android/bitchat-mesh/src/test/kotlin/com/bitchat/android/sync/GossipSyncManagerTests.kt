@@ -49,6 +49,16 @@ class GossipSyncManagerTests {
         override fun gcsTargetFpr(): Double = error("no-fpr")
     }
 
+    private class TinyConfigProvider(
+        private val seenCapacity: Int = 5,
+        private val maxBytes: Int = 1,
+        private val fpr: Double = 0.1
+    ) : GossipSyncManager.ConfigProvider {
+        override fun seenCapacity(): Int = seenCapacity
+        override fun gcsMaxBytes(): Int = maxBytes
+        override fun gcsTargetFpr(): Double = fpr
+    }
+
     @Test
     fun broadcastMessagesTrimToCapacity() {
         val manager = newManager()
@@ -187,6 +197,36 @@ class GossipSyncManagerTests {
         assertTrue(!latest.containsKey(stalePeer))
         assertTrue(messages.values.none { it.senderID.toHexString() == stalePeer })
         assertTrue(messages.values.any { it.senderID.toHexString() == freshPeer })
+    }
+
+    @Test
+    fun buildGcsPayloadCapsFilterSize() {
+        val manager = newManager(TinyConfigProvider(maxBytes = 1))
+        val sender = "cccccccccccccccc"
+
+        repeat(4) { idx ->
+            manager.onPublicPacketSeen(messagePacket(sender, System.currentTimeMillis() + idx))
+        }
+
+        val payload = invokeBuildPayload(manager)
+        val decoded = RequestSyncPacket.decode(payload)
+
+        assertTrue(decoded != null)
+        assertTrue(decoded!!.data.size <= 1)
+    }
+
+    @Test
+    fun buildGcsPayloadHandlesZeroMaxBytes() {
+        val manager = newManager(TinyConfigProvider(maxBytes = 0))
+        val sender = "dddddddddddddddd"
+
+        manager.onPublicPacketSeen(messagePacket(sender, System.currentTimeMillis()))
+
+        val payload = invokeBuildPayload(manager)
+        val decoded = RequestSyncPacket.decode(payload)
+
+        assertTrue(decoded != null)
+        assertTrue(decoded!!.data.isEmpty())
     }
 
     private fun newManager(configProvider: GossipSyncManager.ConfigProvider = TestConfigProvider()): GossipSyncManager {

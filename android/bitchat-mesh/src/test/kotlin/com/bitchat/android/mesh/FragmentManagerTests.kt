@@ -114,6 +114,29 @@ class FragmentManagerTests {
     }
 
     @Test
+    fun handleFragmentIgnoresDuplicateUntilComplete() {
+        val manager = FragmentManager()
+        val packet = largeMessagePacket("0102030405060708")
+        val fragments = manager.createFragments(packet)
+
+        assertTrue(fragments.size > 1)
+
+        val first = fragments.first()
+        assertTrue(manager.handleFragment(first) == null)
+        assertTrue(manager.handleFragment(first) == null)
+
+        var reassembled: BitchatPacket? = null
+        fragments.drop(1).forEach { fragment ->
+            val result = manager.handleFragment(fragment)
+            if (result != null) {
+                reassembled = result
+            }
+        }
+
+        assertNotNull(reassembled)
+    }
+
+    @Test
     fun handleFragmentRejectsTooSmallPayload() {
         val manager = FragmentManager()
         val packet = BitchatPacket(
