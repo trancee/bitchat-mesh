@@ -1,0 +1,107 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Android unit tests (gradle)",
+			"type": "shell",
+			"command": "./android/gradlew",
+			"args": [
+				"-p",
+				"android",
+				":bitchat-mesh:test"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Android instrumentation tests (gradle)",
+			"type": "shell",
+			"command": "./android/gradlew",
+			"args": [
+				"-p",
+				"android",
+				":bitchat-mesh:connectedDebugAndroidTest"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Android Jacoco report (gradle)",
+			"type": "shell",
+			"command": "./android/gradlew",
+			"args": [
+				"-p",
+				"android",
+				":bitchat-mesh:jacocoFullReport"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "iOS unit tests (swift)",
+			"type": "shell",
+			"command": "swift",
+			"args": [
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test",
+			"options": {
+				"cwd": "ios"
+			}
+		},
+		{
+			"label": "iOS tests with coverage (swift)",
+			"type": "shell",
+			"command": "swift",
+			"args": [
+				"test",
+				"--enable-code-coverage"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test",
+			"options": {
+				"cwd": "ios"
+			}
+		},
+		{
+			"label": "iOS coverage merge (llvm-profdata)",
+			"type": "shell",
+			"command": "xcrun",
+			"args": [
+				"llvm-profdata",
+				"merge",
+				"-sparse",
+				".build/debug/codecov/*.profraw",
+				"-o",
+				".build/debug/codecov/default.profdata"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"options": {
+				"cwd": "ios"
+			}
+		},
+		{
+			"label": "iOS coverage report (llvm-cov)",
+			"type": "shell",
+			"command": "xcrun",
+			"args": [
+				"llvm-cov",
+				"report",
+				".build/debug/BitchatMeshPackageTests.xctest/Contents/MacOS/BitchatMeshPackageTests",
+				"-instr-profile",
+				".build/debug/codecov/default.profdata"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"options": {
+				"cwd": "ios"
+			}
+		}
+	]
+}
