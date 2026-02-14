@@ -76,6 +76,33 @@ class VerificationServiceTests {
         assertArrayEquals(signature, parsed.signature)
     }
 
+
+    @Test
+    fun buildVerifyResponseReturnsNullWhenSignFails() {
+        val encryptionService = mock<EncryptionService>()
+        whenever(encryptionService.signData(any())).thenReturn(null)
+        VerificationService.configure(encryptionService)
+
+        val response = VerificationService.buildVerifyResponse("noise-key", byteArrayOf(1, 2))
+
+        assertNull(response)
+    }
+
+    @Test
+    fun verifyResponseSignatureRejectsInvalidSignerKey() {
+        val encryptionService = mock<EncryptionService>()
+        VerificationService.configure(encryptionService)
+
+        val ok = VerificationService.verifyResponseSignature(
+            noiseKeyHex = "noise",
+            nonceA = byteArrayOf(1, 2),
+            signature = byteArrayOf(3, 4),
+            signerPublicKeyHex = "zz"
+        )
+
+        assertEquals(false, ok)
+    }
+
     @Test
     fun parseVerifyResponseRejectsTruncatedData() {
         val truncated = byteArrayOf(0x01, 0x01, 0x41, 0x02)

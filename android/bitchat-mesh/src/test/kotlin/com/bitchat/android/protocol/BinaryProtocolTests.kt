@@ -472,4 +472,41 @@ class BinaryProtocolTests {
 
         assertNull(BinaryProtocol.decode(builder.toByteArray()))
     }
+
+    @Test
+    fun testBinaryProtocolDecodeIgnoresRouteFlagOnV1() {
+        val builder = ByteArrayBuilder()
+        builder.append(1)
+        builder.append(0x02)
+        builder.append(0x01)
+        builder.appendBytes(ByteArray(8))
+        builder.append(BinaryProtocol.Flags.HAS_ROUTE.toInt())
+        builder.appendUInt16(0)
+        builder.appendBytes(ByteArray(8) { 0xAA.toByte() })
+
+        val decoded = BinaryProtocol.decode(builder.toByteArray())
+
+        assertNotNull(decoded)
+        assertNull(decoded?.route)
+        assertEquals(0, decoded?.payload?.size)
+    }
+
+    @Test
+    fun testBinaryProtocolDecodeTreatsEmptyRouteAsNullOnV2() {
+        val builder = ByteArrayBuilder()
+        builder.append(2)
+        builder.append(0x02)
+        builder.append(0x01)
+        builder.appendBytes(ByteArray(8))
+        builder.append(BinaryProtocol.Flags.HAS_ROUTE.toInt())
+        builder.appendUInt32(0)
+        builder.appendBytes(ByteArray(8) { 0xAA.toByte() })
+        builder.append(0x00)
+
+        val decoded = BinaryProtocol.decode(builder.toByteArray())
+
+        assertNotNull(decoded)
+        assertNull(decoded?.route)
+        assertEquals(0, decoded?.payload?.size)
+    }
 }

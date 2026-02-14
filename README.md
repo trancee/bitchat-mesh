@@ -48,6 +48,7 @@ Run code coverage:
 ```bash
 cd android
 ./gradlew :bitchat-mesh:jacocoTestReport
+./gradlew :bitchat-mesh:jacocoFullReport
 ```
 
 ### iOS (Swift Package)

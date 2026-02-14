@@ -94,6 +94,99 @@ class StoreForwardManagerTests {
         assertFalse(manager.shouldCacheForPeer("peer-1"))
     }
 
+    @Test
+    fun cacheMessageStoresRegularForNonFavorite() {
+        val manager = StoreForwardManager()
+        manager.clearAllCache()
+        manager.delegate = FakeDelegate(isFavorite = false, isOnline = false)
+
+        val packet = BitchatPacket(
+            version = 2u,
+            type = MessageType.MESSAGE.value,
+            senderID = ByteArray(8) { 0x01 },
+            recipientID = "peer-2".toByteArray(),
+            timestamp = 1uL,
+            payload = byteArrayOf(0x02),
+            signature = null,
+            ttl = 3u,
+            route = null
+        )
+        manager.cacheMessage(packet, "msg-regular")
+
+        assertEquals(1, manager.getCachedMessageCount("peer-2"))
+    }
+
+    @Test
+    fun sendCachedMessagesSkipsDelivered() = runBlocking {
+        val manager = StoreForwardManager()
+        manager.clearAllCache()
+        val delegate = FakeDelegate(isFavorite = false, isOnline = false)
+        manager.delegate = delegate
+
+        val packet = BitchatPacket(
+            version = 2u,
+            type = MessageType.MESSAGE.value,
+            senderID = ByteArray(8) { 0x01 },
+            recipientID = "peer-3".toByteArray(),
+            timestamp = 1uL,
+            payload = byteArrayOf(0x02),
+            signature = null,
+            ttl = 3u,
+            route = null
+        )
+        manager.cacheMessage(packet, "msg-delivered")
+        manager.markMessageAsDelivered("msg-delivered")
+
+        manager.sendCachedMessages("peer-3")
+        delay(50)
+
+        assertTrue(delegate.sentPackets.isEmpty())
+    }
+
+    @Test
+    fun forceCleanupRemovesExpiredMessages() {
+        val manager = StoreForwardManager()
+        manager.clearAllCache()
+        manager.delegate = FakeDelegate(isFavorite = false, isOnline = false)
+
+        val packet = BitchatPacket(
+            version = 2u,
+            type = MessageType.MESSAGE.value,
+            senderID = ByteArray(8) { 0x01 },
+            recipientID = "peer-4".toByteArray(),
+            timestamp = 1uL,
+            payload = byteArrayOf(0x02),
+            signature = null,
+            ttl = 3u,
+            route = null
+        )
+
+        val storedClass = Class.forName("com.bitchat.android.mesh.StoreForwardManager\$StoredMessage")
+        val constructor = storedClass.getDeclaredConstructor(
+            BitchatPacket::class.java,
+            Long::class.javaPrimitiveType,
+            String::class.java,
+            Boolean::class.javaPrimitiveType
+        )
+        constructor.isAccessible = true
+        val stored = constructor.newInstance(
+            packet,
+            System.currentTimeMillis() - com.bitchat.android.util.AppConstants.StoreForward.MESSAGE_CACHE_TIMEOUT_MS - 1,
+            "msg-old",
+            false
+        )
+
+        val cacheField = StoreForwardManager::class.java.getDeclaredField("messageCache")
+        cacheField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val cache = cacheField.get(manager) as MutableList<Any>
+        cache.add(stored)
+
+        manager.forceCleanup()
+
+        assertEquals(0, manager.getCachedMessageCount("peer-4"))
+    }
+
     private class FakeDelegate(
         private val isFavorite: Boolean,
         private val isOnline: Boolean

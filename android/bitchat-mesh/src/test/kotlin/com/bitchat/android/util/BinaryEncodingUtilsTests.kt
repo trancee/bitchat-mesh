@@ -220,4 +220,60 @@ class BinaryEncodingUtilsTests {
         assertArrayEquals(expected, bytes)
         assertEquals(16, offset[0])
     }
+
+    @Test
+    fun testBinaryDataReaderReadsValuesAndAdvancesOffset() {
+        val builder = BinaryDataBuilder()
+        builder.appendUInt8(0x01u)
+        builder.appendUInt16(0x0203u)
+        builder.appendUInt32(0x04050607u)
+        builder.appendUInt64(0x08090A0B0C0D0E0Fu)
+        builder.appendString("hi")
+        builder.appendData(byteArrayOf(0x0A, 0x0B))
+        builder.appendUUID("00112233-4455-6677-8899-AABBCCDDEEFF")
+
+        val reader = BinaryDataReader(builder.toByteArray())
+
+        assertEquals(0x01u.toUByte(), reader.readUInt8())
+        assertEquals(0x0203u.toUShort(), reader.readUInt16())
+        assertEquals(0x04050607u, reader.readUInt32())
+        assertEquals(0x08090A0B0C0D0E0Fu, reader.readUInt64())
+        assertEquals("hi", reader.readString())
+        assertArrayEquals(byteArrayOf(0x0A, 0x0B), reader.readData())
+        assertEquals("00112233-4455-6677-8899-AABBCCDDEEFF", reader.readUUID())
+        assertEquals(builder.toByteArray().size, reader.currentOffset)
+    }
+
+    @Test
+    fun testBinaryDataReaderReturnsNullWhenOutOfBounds() {
+        val reader = BinaryDataReader(byteArrayOf(0x01))
+
+        assertNull(reader.readUInt16())
+        assertNull(reader.readUInt32())
+        assertNull(reader.readUInt64())
+        assertNull(reader.readString())
+        assertNull(reader.readData())
+        assertNull(reader.readUUID())
+        assertNull(reader.readFixedBytes(2))
+    }
+
+    @Test
+    fun testBinaryDataReaderReadsUInt16LengthFields() {
+        val builder = BinaryDataBuilder()
+        builder.appendUInt16(3u)
+        builder.buffer.addAll("hey".toByteArray(Charsets.UTF_8).toList())
+        builder.appendUInt16(2u)
+        builder.buffer.addAll(byteArrayOf(0x01, 0x02).toList())
+
+        val reader = BinaryDataReader(builder.toByteArray())
+
+        assertEquals("hey", reader.readString(maxLength = 300))
+        assertArrayEquals(byteArrayOf(0x01, 0x02), reader.readData(maxLength = 300))
+    }
+
+    @Test
+    fun testBinaryMessageTypeFromValue() {
+        assertEquals(BinaryMessageType.READ_RECEIPT, BinaryMessageType.fromValue(0x02u))
+        assertNull(BinaryMessageType.fromValue(0xFFu))
+    }
 }
