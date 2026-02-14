@@ -51,6 +51,7 @@ class PowerManagerInstrumentationTests {
         setPrivateField("batteryLevel", AppConstants.Power.CRITICAL_BATTERY_PERCENT)
         setPrivateField("isCharging", false)
         setPrivateField("isAppInBackground", true)
+        setPrivateField("currentMode", PowerManager.PowerMode.PERFORMANCE)
 
         updatePowerMode()
 
@@ -85,7 +86,8 @@ class PowerManagerInstrumentationTests {
     }
 
     private fun assertMode(expected: PowerManager.PowerMode) {
-        val info = powerManager.getPowerInfo()
-        assertTrue(info.contains("Current Mode: $expected"))
+        val field = PowerManager::class.java.getDeclaredField("currentMode")
+        field.isAccessible = true
+        assertEquals(expected, field.get(powerManager))
     }
 }

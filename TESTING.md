@@ -26,12 +26,12 @@ cd android
 - Report excludes the upstream `com.bitchat.android.noise.southernstorm` package and Bluetooth stack classes.
 - Last updated: 2026-02-14
 - Jacoco totals (unit + instrumentation):
-  - Instruction: 22802/32560 (70.03%)
-  - Line: 3555/4914 (72.34%)
-  - Branch: 1755/3286 (53.41%)
-  - Complexity: 1105/2601 (42.48%)
-  - Method: 622/919 (67.68%)
-  - Class: 116/157 (73.89%)
+  - Instruction: 23179/32560 (71.19%)
+  - Line: 3600/4914 (73.26%)
+  - Branch: 1796/3286 (54.66%)
+  - Complexity: 1110/2601 (42.68%)
+  - Method: 624/919 (67.90%)
+  - Class: 117/157 (74.52%)
 
 ## iOS
 
