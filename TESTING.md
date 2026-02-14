@@ -54,6 +54,7 @@ cd android
 cd ios
 swift test
 swift test --enable-code-coverage
+xcrun llvm-profdata merge -sparse .build/debug/codecov/*.profraw -o .build/debug/codecov/default.profdata
 xcrun llvm-cov report \
   .build/debug/BitchatMeshPackageTests.xctest/Contents/MacOS/BitchatMeshPackageTests \
   -instr-profile .build/debug/codecov/default.profdata
@@ -65,15 +66,23 @@ xcrun llvm-cov report \
   - `BinaryEncodingUtilsTests`
   - `BinaryProtocolTests`
   - `BitchatFilePacketTests`
+  - `IntegrationMessagingTests`
+  - `MeshEndToEndCompatibilityTests`
   - `MeshListenerTests`
   - `MeshManagerTests`
+  - `MeshServicesTests`
+  - `MoreCoverageTests`
+  - `NoiseAndSyncManagerTests`
+  - `ProtocolAndNoiseTests`
+  - `RouteForwardingTests`
   - `TLVPacketTests`
+  - `UtilsAndSyncTests`
 
 ### Coverage
 
 - Coverage is reported via `xcrun llvm-cov report`.
-- Last updated: 2026-02-12
+- Last updated: 2026-02-14
 - llvm-cov totals:
-  - Regions: 28.10%
-  - Functions: 41.27%
-  - Lines: 32.20%
+  - Regions: 52.68%
+  - Functions: 63.27%
+  - Lines: 57.24%
