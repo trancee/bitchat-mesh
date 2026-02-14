@@ -69,7 +69,11 @@ tasks.register<JacocoReport>("jacocoTestReport") {
         "**/BuildConfig.*",
         "**/Manifest*.*",
         "**/*Test*.*",
-        "**/com/bitchat/android/noise/southernstorm/**"
+        "**/com/bitchat/android/noise/southernstorm/**",
+        "**/com/bitchat/android/mesh/Bluetooth*.class",
+        "**/com/bitchat/android/mesh/Bluetooth*/*.class",
+        "**/com/bitchat/android/mesh/*Gatt*.class",
+        "**/com/bitchat/android/mesh/*Gatt*/*.*"
     )
 
     val debugTree = fileTree("${layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
@@ -105,7 +109,11 @@ tasks.register<JacocoReport>("jacocoFullReport") {
         "**/BuildConfig.*",
         "**/Manifest*.*",
         "**/*Test*.*",
-        "**/com/bitchat/android/noise/southernstorm/**"
+        "**/com/bitchat/android/noise/southernstorm/**",
+        "**/com/bitchat/android/mesh/Bluetooth*.class",
+        "**/com/bitchat/android/mesh/Bluetooth*/*.class",
+        "**/com/bitchat/android/mesh/*Gatt*.class",
+        "**/com/bitchat/android/mesh/*Gatt*/*.*"
     )
 
     val debugTree = fileTree("${layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
